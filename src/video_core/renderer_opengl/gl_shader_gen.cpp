@@ -15,7 +15,8 @@ static constexpr u32 PROGRAM_OFFSET{10};
 
 ProgramResult GenerateVertexShader(const ShaderSetup& setup) {
     std::string out = "#version 430 core\n";
-    out += "#extension GL_ARB_separate_shader_objects : enable\n\n";
+    out += "#extension GL_ARB_separate_shader_objects : enable\n";
+    out += "#extension GL_ARB_enhanced_layouts : enable\n\n";
     out += Decompiler::GetCommonDeclarations();
     out += "bool exec_vertex();\n";
 
@@ -78,7 +79,8 @@ void main() {
 
 ProgramResult GenerateFragmentShader(const ShaderSetup& setup) {
     std::string out = "#version 430 core\n";
-    out += "#extension GL_ARB_separate_shader_objects : enable\n\n";
+    out += "#extension GL_ARB_separate_shader_objects : enable\n";
+    out += "#extension GL_ARB_enhanced_layouts : enable\n\n";
     out += Decompiler::GetCommonDeclarations();
     out += "bool exec_fragment();\n";
 

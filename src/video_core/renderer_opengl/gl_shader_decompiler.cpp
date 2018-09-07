@@ -247,7 +247,6 @@ public:
                         const Maxwell3D::Regs::ShaderStage& stage, const std::string& suffix)
         : shader{shader}, declarations{declarations}, stage{stage}, suffix{suffix} {
         BuildRegisterList();
-        BuildInputList();
     }
 
     /**
@@ -347,7 +346,13 @@ public:
     void SetRegisterToInputAttibute(const Register& reg, u64 elem, Attribute::Index attribute,
                                     const Tegra::Shader::IpaMode& input_mode) {
         std::string dest = GetRegisterAsFloat(reg);
-        std::string src = GetInputAttribute(attribute, input_mode) + GetSwizzle(elem);
+        std::string src;
+        if (IsAttributeUserDefined(attribute)) {
+            DeclareInput(attribute, elem, input_mode);
+            src = GetInputComponentName(attribute, elem);
+        } else {
+            src = GetInputAttribute(attribute) + GetSwizzle(elem);
+        }
         shader.AddLine(dest + " = " + src + ';');
     }
 
@@ -414,13 +419,13 @@ public:
         }
         declarations.AddNewLine();
 
-        for (const auto element : declr_input_attribute) {
-            // TODO(bunnei): Use proper number of elements for these
-            u32 idx =
-                static_cast<u32>(element.first) - static_cast<u32>(Attribute::Index::Attribute_0);
-            declarations.AddLine("layout(location = " + std::to_string(idx) + ")" +
-                                 GetInputFlags(element.first) + "in vec4 " +
-                                 GetInputAttribute(element.first, element.second) + ';');
+        for (const auto pair : declr_input_attribute) {
+            auto component = Index2InputElement(pair.first);
+            u32 idx = pair.first / 4;
+            declarations.AddLine("layout(location = " + std::to_string(idx) +
+                                 ", component = " + std::to_string(component.second) + ")" +
+                                 GetInputFlags(pair.second) + "in float " +
+                                 GetInputComponentName(component.first, component.second) + ';');
         }
         declarations.AddNewLine();
 
@@ -536,15 +541,44 @@ private:
         }
     }
 
-    void BuildInputList() {
-        const u32 size = static_cast<u32>(Attribute::Index::Attribute_31) -
-                         static_cast<u32>(Attribute::Index::Attribute_0) + 1;
-        declr_input_attribute.reserve(size);
+    bool IsAttributeUserDefined(Attribute::Index attribute) const {
+        return (attribute >= Attribute::Index::Attribute_0) &&
+               (attribute <= Attribute::Index::Attribute_31);
+    }
+
+    u32 InputElement2Index(Attribute::Index attribute, u32 elem) const {
+        const u32 zero_index = static_cast<u32>(Attribute::Index::Attribute_0);
+        const u32 attribute_index = static_cast<u32>(attribute);
+        return (attribute_index - zero_index) * 4 + elem;
+    }
+
+    std::pair<Attribute::Index, u32> Index2InputElement(u32 index) const {
+        const u32 element = index % 4;
+        const u32 subindex = index / 4;
+        const u32 zero_index = static_cast<u32>(Attribute::Index::Attribute_0);
+        const Attribute::Index attribute = static_cast<Attribute::Index>(subindex + zero_index);
+        return std::pair<Attribute::Index, u32>(attribute, element);
+    }
+
+    void DeclareInput(Attribute::Index attribute, u32 elem,
+                      const Tegra::Shader::IpaMode& input_mode) {
+        const u32 index = InputElement2Index(attribute, elem);
+        if (declr_input_attribute.count(index) == 0) {
+            declr_input_attribute.insert(std::pair<u32, Tegra::Shader::IpaMode>(index, input_mode));
+        } else {
+            if (declr_input_attribute[index] != input_mode) {
+                LOG_CRITICAL(HW_GPU, "Same input multiple input modes");
+                UNREACHABLE();
+            }
+        }
+    }
+
+    std::string GetInputComponentName(Attribute::Index attribute, u32 elem) {
+        return "input_attribute_" + std::to_string(InputElement2Index(attribute, elem));
     }
 
     /// Generates code representing an input attribute register.
-    std::string GetInputAttribute(Attribute::Index attribute,
-                                  const Tegra::Shader::IpaMode& input_mode) {
+    std::string GetInputAttribute(Attribute::Index attribute) {
         switch (attribute) {
         case Attribute::Index::Position:
             if (stage != Maxwell3D::Regs::ShaderStage::Fragment) {
@@ -565,21 +599,6 @@ private:
             ASSERT(stage == Maxwell3D::Regs::ShaderStage::Fragment);
             return "vec4(0, 0, 0, uintBitsToFloat(gl_FrontFacing ? 1 : 0))";
         default:
-            const u32 index{static_cast<u32>(attribute) -
-                            static_cast<u32>(Attribute::Index::Attribute_0)};
-            if (attribute >= Attribute::Index::Attribute_0 &&
-                attribute <= Attribute::Index::Attribute_31) {
-                if (declr_input_attribute.count(attribute) == 0) {
-                    declr_input_attribute[attribute] = input_mode;
-                } else {
-                    if (declr_input_attribute[attribute] != input_mode) {
-                        LOG_CRITICAL(HW_GPU, "Same Input multiple input modes");
-                        UNREACHABLE();
-                    }
-                }
-                return "input_attribute_" + std::to_string(index);
-            }
-
             LOG_CRITICAL(HW_GPU, "Unhandled input attribute: {}", static_cast<u32>(attribute));
             UNREACHABLE();
         }
@@ -587,11 +606,9 @@ private:
         return "vec4(0, 0, 0, 0)";
     }
 
-    std::string GetInputFlags(const Attribute::Index attribute) {
-        const Tegra::Shader::IpaSampleMode sample_mode =
-            declr_input_attribute[attribute].sampling_mode;
-        const Tegra::Shader::IpaInterpMode interp_mode =
-            declr_input_attribute[attribute].interpolation_mode;
+    std::string GetInputFlags(const Tegra::Shader::IpaMode& mode) const {
+        const Tegra::Shader::IpaSampleMode sample_mode = mode.sampling_mode;
+        const Tegra::Shader::IpaInterpMode interp_mode = mode.interpolation_mode;
         std::string out;
         switch (interp_mode) {
         case Tegra::Shader::IpaInterpMode::Flat: {
@@ -660,7 +677,7 @@ private:
     ShaderWriter& shader;
     ShaderWriter& declarations;
     std::vector<GLSLRegister> regs;
-    std::unordered_map<Attribute::Index, Tegra::Shader::IpaMode> declr_input_attribute;
+    std::map<u32, Tegra::Shader::IpaMode> declr_input_attribute;
     std::set<Attribute::Index> declr_output_attribute;
     std::array<ConstBufferEntry, Maxwell3D::Regs::MaxConstBuffers> declr_const_buffers;
     std::vector<SamplerEntry> used_samplers;
