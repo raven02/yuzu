@@ -1015,8 +1015,7 @@ private:
             break;
         }
         default:
-            LOG_CRITICAL(HW_GPU, "Unhandled texture type {}",
-                         static_cast<u32>(texture_type));
+            LOG_CRITICAL(HW_GPU, "Unhandled texture type {}", static_cast<u32>(texture_type));
             UNREACHABLE();
             return 0;
         }
@@ -1914,12 +1913,20 @@ private:
 
                 ASSERT_MSG(!instr.tex.UsesMiscMode(Tegra::Shader::TextureMiscMode::NODEP),
                            "NODEP is not implemented");
-                ASSERT_MSG(!instr.tex.UsesMiscMode(Tegra::Shader::TextureMiscMode::AOFFI),
-                           "AOFFI is not implemented");
 
-                const bool depthCompare = instr.tex.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
+                bool usesOffset = instr.tex.UsesMiscMode(Tegra::Shader::TextureMiscMode::AOFFI);
+                std::string offsetPrefix;
+                std::string offsetSuffix;
+                if (usesOffset) {
+                    offsetPrefix = "Offset";
+                    offsetSuffix = ", offset";
+                }
+
+                const bool depthCompare =
+                    instr.tex.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
                 u32 num_coordinates = TextureCoordinates(texture_type);
-                if (depthCompare) num_coordinates += 1;
+                if (depthCompare)
+                    num_coordinates += 1;
 
                 switch (num_coordinates) {
                 case 1: {
@@ -1954,6 +1961,8 @@ private:
                 // TODO: make sure coordinates are always indexed to gpr8 and gpr20 is always bias
                 // or lod.
                 const std::string op_c = regs.GetRegisterAsFloat(instr.gpr20);
+                const std::string op_d = regs.GetRegisterAsFloat(instr.gpr20.Value() + 1);
+                std::string op_offset;
 
                 const std::string sampler =
                     GetSampler(instr.sampler, texture_type, false, depthCompare);
@@ -1967,23 +1976,31 @@ private:
 
                 switch (instr.tex.GetTextureProcessMode()) {
                 case Tegra::Shader::TextureProcessMode::None: {
-                    texture = "texture(" + sampler + ", coords)";
+                    texture =
+                        "texture" + offsetPrefix + '(' + sampler + ", coords" + offsetSuffix + ')';
+                    op_offset = op_c;
                     break;
                 }
                 case Tegra::Shader::TextureProcessMode::LZ: {
-                    texture = "textureLod(" + sampler + ", coords, 0.0)";
+                    texture = "textureLod" + offsetPrefix + '(' + sampler + ", coords" +
+                              offsetSuffix + ", 0.0)";
+                    op_offset = op_c;
                     break;
                 }
                 case Tegra::Shader::TextureProcessMode::LB:
                 case Tegra::Shader::TextureProcessMode::LBA: {
                     // TODO: Figure if A suffix changes the equation at all.
-                    texture = "texture(" + sampler + ", coords, " + op_c + ')';
+                    texture = "texture" + offsetPrefix + '(' + sampler + ", coords" + offsetSuffix +
+                              ", " + op_c + ')';
+                    op_offset = op_d;
                     break;
                 }
                 case Tegra::Shader::TextureProcessMode::LL:
                 case Tegra::Shader::TextureProcessMode::LLA: {
                     // TODO: Figure if A suffix changes the equation at all.
-                    texture = "textureLod(" + sampler + ", coords, " + op_c + ')';
+                    texture = "textureLod" + offsetPrefix + '(' + sampler + ", coords" +
+                              offsetSuffix + ", " + op_c + ')';
+                    op_offset = op_d;
                     break;
                 }
                 default: {
@@ -1991,7 +2008,13 @@ private:
                     LOG_CRITICAL(HW_GPU, "Unhandled texture process mode {}",
                                  static_cast<u32>(instr.tex.GetTextureProcessMode()));
                     UNREACHABLE();
+                    usesOffset = false;
                 }
+                }
+                if (usesOffset) {
+                    std::string offsetA = "int((floatBitsToUint(" + op_offset + ")<< 24) >> 24)";
+                    std::string offsetB = "int((floatBitsToUint(" + op_offset + ")<< 16) >> 24)";
+                    shader.AddLine("ivec2 offset = ivec2(" + offsetA + ", " + offsetB + ");");
                 }
                 if (!depthCompare) {
                     std::size_t dest_elem{};
@@ -2018,9 +2041,11 @@ private:
                 ASSERT_MSG(!instr.texs.UsesMiscMode(Tegra::Shader::TextureMiscMode::NODEP),
                            "NODEP is not implemented");
 
-                const bool depthCompare = instr.texs.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
+                const bool depthCompare =
+                    instr.texs.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
                 u32 num_coordinates = TextureCoordinates(texture_type);
-                if (depthCompare) num_coordinates += 1;
+                if (depthCompare)
+                    num_coordinates += 1;
 
                 switch (num_coordinates) {
                 case 2: {
@@ -2161,10 +2186,12 @@ private:
                            "NDV is not implemented");
                 ASSERT_MSG(!instr.tld4.UsesMiscMode(Tegra::Shader::TextureMiscMode::PTP),
                            "PTP is not implemented");
-                const bool depthCompare = instr.tld4.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
+                const bool depthCompare =
+                    instr.tld4.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
                 auto texture_type = instr.tld4.texture_type.Value();
                 u32 num_coordinates = TextureCoordinates(texture_type);
-                if (depthCompare) num_coordinates += 1;
+                if (depthCompare)
+                    num_coordinates += 1;
 
                 switch (num_coordinates) {
                 case 2: {
@@ -2222,7 +2249,8 @@ private:
                 ASSERT_MSG(!instr.tld4s.UsesMiscMode(Tegra::Shader::TextureMiscMode::AOFFI),
                            "AOFFI is not implemented");
 
-                const bool depthCompare = instr.tld4s.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
+                const bool depthCompare =
+                    instr.tld4s.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
                 const std::string op_a = regs.GetRegisterAsFloat(instr.gpr8);
                 const std::string op_b = regs.GetRegisterAsFloat(instr.gpr20);
                 // TODO(Subv): Figure out how the sampler type is encoded in the TLD4S instruction.
