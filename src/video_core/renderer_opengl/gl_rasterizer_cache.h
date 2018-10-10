@@ -122,6 +122,13 @@ struct SurfaceParams {
         TextureCubemap,
     };
 
+    enum class SurfaceClass {
+        Texture,
+        RenderTarget,
+        DepthBuffer,
+        Copy,
+    };
+
     static SurfaceTarget SurfaceTargetFromTextureType(Tegra::Texture::TextureType texture_type) {
         switch (texture_type) {
         case Tegra::Texture::TextureType::Texture1D:
@@ -719,7 +726,7 @@ struct SurfaceParams {
     static SurfaceParams CreateForDepthBuffer(u32 zeta_width, u32 zeta_height,
                                               Tegra::GPUVAddr zeta_address,
                                               Tegra::DepthFormat format, u32 block_width,
-                                              u32 block_height, u32 block_depth);
+                                              u32 block_height, u32 block_depth, Tegra::Engines::Maxwell3D::Regs::InvMemoryLayout layout);
 
     /// Creates SurfaceParams for a Fermi2D surface copy
     static SurfaceParams CreateForFermiCopySurface(
@@ -747,6 +754,7 @@ struct SurfaceParams {
     std::size_t size_in_bytes_total;
     std::size_t size_in_bytes_2d;
     SurfaceTarget target;
+    SurfaceClass surface_class;
     u32 max_mip_level;
 
     // Render target specific parameters, not used in caching

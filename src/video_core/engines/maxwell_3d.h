@@ -92,6 +92,16 @@ public:
             Fragment = 4,
         };
 
+        enum class MemoryLayout : u32 {
+            Linear = 0,
+            BlockLinear = 1,
+        };
+
+        enum class InvMemoryLayout : u32 {
+            BlockLinear = 0,
+            Linear = 1,
+        };
+
         struct VertexAttribute {
             enum class Size : u32 {
                 Invalid = 0x0,
@@ -434,8 +444,9 @@ public:
             Tegra::RenderTargetFormat format;
             union {
                 BitField<0, 3, u32> block_width;
-                BitField<3, 3, u32> block_height;
-                BitField<6, 3, u32> block_depth;
+                BitField<4, 3, u32> block_height;
+                BitField<8, 3, u32> block_depth;
+                BitField<12, 1, InvMemoryLayout> layout;
             } block_dimensions;
             u32 array_mode;
             u32 layer_stride;
@@ -556,6 +567,7 @@ public:
                         BitField<0, 4, u32> block_width;
                         BitField<4, 4, u32> block_height;
                         BitField<8, 4, u32> block_depth;
+                        BitField<20, 1, InvMemoryLayout> layout;
                     } block_dimensions;
                     u32 layer_stride;
 

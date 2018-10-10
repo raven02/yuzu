@@ -56,6 +56,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.height = Common::AlignUp(config.tic.Height(), GetCompressionFactor(params.pixel_format));
     params.unaligned_height = config.tic.Height();
     params.target = SurfaceTargetFromTextureType(config.tic.texture_type);
+    params.surface_class = SurfaceClass::Texture;
 
     switch (params.target) {
     case SurfaceTarget::Texture1D:
@@ -99,7 +100,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     const auto& config{Core::System::GetInstance().GPU().Maxwell3D().regs.rt[index]};
     SurfaceParams params{};
     params.addr = TryGetCpuAddr(config.Address());
-    params.is_tiled = true;
+    params.is_tiled = config.block_dimensions.layout == Tegra::Engines::Maxwell3D::Regs::InvMemoryLayout::BlockLinear;
     params.block_width = 1 << config.block_dimensions.block_width;
     params.block_height = 1 << config.block_dimensions.block_height;
     params.block_depth = 1 << config.block_dimensions.block_depth;
@@ -110,6 +111,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.height = config.height;
     params.unaligned_height = config.height;
     params.target = SurfaceTarget::Texture2D;
+    params.surface_class = SurfaceClass::RenderTarget;
     params.depth = 1;
     params.size_in_bytes_total = params.SizeInBytesTotal();
     params.size_in_bytes_2d = params.SizeInBytes2D();
@@ -128,10 +130,10 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
                                                              Tegra::GPUVAddr zeta_address,
                                                              Tegra::DepthFormat format,
                                                              u32 block_width, u32 block_height,
-                                                             u32 block_depth) {
+                                                             u32 block_depth, Tegra::Engines::Maxwell3D::Regs::InvMemoryLayout layout) {
     SurfaceParams params{};
     params.addr = TryGetCpuAddr(zeta_address);
-    params.is_tiled = true;
+    params.is_tiled = layout == Tegra::Engines::Maxwell3D::Regs::InvMemoryLayout::BlockLinear;
     params.block_width = 1 << block_width;
     params.block_height = 1 << block_height;
     params.block_depth = 1 << block_depth;
@@ -142,6 +144,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.height = zeta_height;
     params.unaligned_height = zeta_height;
     params.target = SurfaceTarget::Texture2D;
+    params.surface_class = SurfaceClass::DepthBuffer;
     params.depth = 1;
     params.size_in_bytes_total = params.SizeInBytesTotal();
     params.size_in_bytes_2d = params.SizeInBytes2D();
@@ -162,6 +165,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.pixel_format = PixelFormatFromRenderTargetFormat(config.format);
     params.component_type = ComponentTypeFromRenderTarget(config.format);
     params.type = GetFormatType(params.pixel_format);
+    params.surface_class = SurfaceClass::Copy;
     params.width = config.width;
     params.height = config.height;
     params.unaligned_height = config.height;
@@ -322,6 +326,8 @@ static bool IsFormatBCn(PixelFormat format) {
     return false;
 }
 
+#pragma optimize("", off)
+
 template <bool morton_to_gl, PixelFormat format>
 void MortonCopy(u32 stride, u32 block_height, u32 height, u8* gl_buffer, std::size_t gl_buffer_size,
                 VAddr addr) {
@@ -338,12 +344,9 @@ void MortonCopy(u32 stride, u32 block_height, u32 height, u8* gl_buffer, std::si
         const std::size_t size_to_copy{std::min(gl_buffer_size, data.size())};
         memcpy(gl_buffer, data.data(), size_to_copy);
     } else {
-        std::vector<u8> data(height * stride * bytes_per_pixel);
         Tegra::Texture::CopySwizzledData(stride / tile_size, height / tile_size, bytes_per_pixel,
-                                         bytes_per_pixel, data.data(), gl_buffer, false,
-                                         block_height);
-        const std::size_t size_to_copy{std::min(gl_buffer_size, data.size())};
-        memcpy(Memory::GetPointer(addr), data.data(), size_to_copy);
+                                         bytes_per_pixel, Memory::GetPointer(addr), gl_buffer,
+                                         false, block_height);
     }
 }
 
@@ -463,6 +466,8 @@ static constexpr std::array<void (*)(u32, u32, u32, u8*, std::size_t, VAddr),
         MortonCopy<false, PixelFormat::Z32FS8>,
         // clang-format on
 };
+
+#pragma optimize("", on)
 
 static bool BlitSurface(const Surface& src_surface, const Surface& dst_surface,
                         GLuint read_fb_handle, GLuint draw_fb_handle, GLenum src_attachment = 0,
@@ -1084,7 +1089,7 @@ Surface RasterizerCacheOpenGL::GetDepthBufferSurface(bool preserve_contents) {
     SurfaceParams depth_params{SurfaceParams::CreateForDepthBuffer(
         regs.zeta_width, regs.zeta_height, regs.zeta.Address(), regs.zeta.format,
         regs.zeta.block_dimensions.block_width, regs.zeta.block_dimensions.block_height,
-        regs.zeta.block_dimensions.block_depth)};
+        regs.zeta.block_dimensions.block_depth, regs.zeta.block_dimensions.layout)};
 
     return GetSurface(depth_params, preserve_contents);
 }
