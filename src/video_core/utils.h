@@ -182,7 +182,7 @@ static void LabelGLObject(GLenum identifier, GLuint handle, VAddr addr,
             break;
         }
     } else {
-        object_label = extra_info + '@' + nice_addr;
+        object_label = extra_info + std::to_string(handle) + '@' + nice_addr;
     }
     glObjectLabel(identifier, handle, -1, static_cast<const GLchar*>(object_label.c_str()));
 }
