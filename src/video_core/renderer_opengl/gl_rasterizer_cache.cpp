@@ -119,6 +119,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     // Render target specific parameters, not used for caching
     params.rt.index = static_cast<u32>(index);
     params.rt.array_mode = config.array_mode;
+    params.rt.volume = config.volume;
     params.rt.layer_stride = config.layer_stride;
     params.rt.base_layer = config.base_layer;
 
@@ -1117,6 +1118,7 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
                        !Settings::values.use_accurate_framebuffers};
 
     switch (new_params.target) {
+    case SurfaceParams::SurfaceTarget::Texture3D:
     case SurfaceParams::SurfaceTarget::Texture2D:
         if (is_blit) {
             BlitSurface(old_surface, new_surface, read_framebuffer.handle, draw_framebuffer.handle);
@@ -1133,6 +1135,7 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
             return new_surface;
         }
 
+        ASSERT_MSG(old_params.rt.volume != 0, "Unexpected");
         // This seems to be used for render-to-cubemap texture
         ASSERT_MSG(old_params.target == SurfaceParams::SurfaceTarget::Texture2D, "Unexpected");
         ASSERT_MSG(old_params.pixel_format == new_params.pixel_format, "Unexpected");
