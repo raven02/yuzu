@@ -696,8 +696,6 @@ static void CopySurface(const Surface& src_surface, const Surface& dst_surface,
     }
 }
 
-#pragma optimize("", off)
-
 static void ReinterpretSurface(const Surface& src_surface, const Surface& dst_surface,
                                GLenum src_attachment = 0, GLenum dst_attachment = 0,
                                std::size_t cubemap_face = 0) {
@@ -709,12 +707,21 @@ static void ReinterpretSurface(const Surface& src_surface, const Surface& dst_su
     auto source_format = GetFormatTuple(src_params.pixel_format, src_params.component_type);
     auto dest_format = GetFormatTuple(dst_params.pixel_format, dst_params.component_type);
 
+    const u32 src_bytes_per_pixel = src_params.GetFormatBpp() / 8;
+    const u32 dst_bytes_per_pixel = dst_params.GetFormatBpp() / 8;
+
     const u32 src_size = Tegra::Texture::CalculateSize(
-        src_params.is_tiled, src_params.GetFormatBpp(), src_params.width, src_params.height,
+        src_params.is_tiled, src_bytes_per_pixel, src_params.width, src_params.height,
         src_params.depth, src_params.block_height, src_params.block_depth);
+    const u32 src_untiled_size = Tegra::Texture::CalculateSize(
+        false, src_bytes_per_pixel, src_params.width, src_params.height, src_params.depth,
+        src_params.block_height, src_params.block_depth);
     const u32 dst_size = Tegra::Texture::CalculateSize(
-        dst_params.is_tiled, dst_params.GetFormatBpp(), dst_params.width, dst_params.height,
+        dst_params.is_tiled, dst_bytes_per_pixel, dst_params.width, dst_params.height,
         dst_params.depth, dst_params.block_height, dst_params.block_depth);
+    const u32 dst_untiled_size =
+        Tegra::Texture::CalculateSize(false, dst_bytes_per_pixel, dst_params.width,
+                                      dst_params.height, 1, dst_params.block_height, 1);
 
     std::size_t buffer_size = std::max(src_size, dst_size);
 
@@ -732,19 +739,27 @@ static void ReinterpretSurface(const Surface& src_surface, const Surface& dst_su
                           source_format.type, static_cast<GLsizei>(src_params.size_in_bytes_total),
                           gl_buffer.data());
     }
+    // We fill the garbage space with repetitions of the source texture
+    // This only works for 2D sources, 1D may need
+    u32 src_depth = Common::AlignUp(src_params.depth, src_params.block_depth);
+    u32 offset = src_untiled_size;
+    for (u32 i = 1; i < src_depth; i++) {
+        std::memcpy(gl_buffer.data() + offset, gl_buffer.data(), src_untiled_size);
+        offset += src_untiled_size;
+    }
+
     // If the new texture is bigger than the previous one, we need to fill in the rest with data
     // from the CPU.
     if (dst_params.is_tiled) {
         std::vector<u8> tmp_buffer(std::max(src_size, dst_size));
-        Tegra::Texture::CopySwizzledData(src_params.width, src_params.height, src_params.depth,
-                                         src_params.GetFormatBpp(), src_params.GetFormatBpp(),
+        Tegra::Texture::CopySwizzledData(src_params.width, src_params.height, src_depth,
+                                         src_bytes_per_pixel, src_bytes_per_pixel,
                                          tmp_buffer.data(), gl_buffer.data(), false,
                                          src_params.block_height, src_params.block_depth);
         Tegra::Texture::CopySwizzledData(dst_params.width, dst_params.height, dst_params.depth,
-                                         dst_params.GetFormatBpp(), dst_params.GetFormatBpp(),
+                                         dst_bytes_per_pixel, dst_bytes_per_pixel,
                                          tmp_buffer.data(), gl_buffer.data(), true,
                                          dst_params.block_height, dst_params.block_depth);
-
     } else {
         if (src_params.size_in_bytes_total < dst_params.size_in_bytes_total) {
             // Upload the rest of the memory.
@@ -792,8 +807,6 @@ static void ReinterpretSurface(const Surface& src_surface, const Surface& dst_su
         }
     }
 }
-
-#pragma optimize("", on)
 
 CachedSurface::CachedSurface(const SurfaceParams& params)
     : params(params), gl_target(SurfaceTargetToGL(params.target)) {
