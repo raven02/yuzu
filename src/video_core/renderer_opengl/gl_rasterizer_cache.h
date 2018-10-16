@@ -878,6 +878,9 @@ private:
     /// Tries to get a reserved surface for the specified parameters
     Surface TryGetReservedSurface(const SurfaceParams& params);
 
+    void ReinterpretSurface(const Surface& src_surface, const Surface& dst_surface,
+                            GLenum src_attachment = 0, GLenum dst_attachment = 0);
+
     /// The surface reserve is a "backup" cache, this is where we put unique surfaces that have
     /// previously been used. This is to prevent surfaces from being constantly created and
     /// destroyed when used with different surface parameters.

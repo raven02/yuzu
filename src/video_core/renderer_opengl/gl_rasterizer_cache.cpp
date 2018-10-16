@@ -1054,8 +1054,8 @@ Surface RasterizerCacheOpenGL::GetSurface(const SurfaceParams& params, bool pres
         } else if (preserve_contents) {
             // If surface parameters changed and we care about keeping the previous data, recreate
             // the surface from the old one
-            Unregister(surface);
             Surface new_surface{RecreateSurface(surface, params)};
+            Unregister(surface);
             Register(new_surface);
             return new_surface;
         } else {
@@ -1106,6 +1106,83 @@ void RasterizerCacheOpenGL::FermiCopySurface(
     FastCopySurface(GetSurface(src_params, true), GetSurface(dst_params, false));
 }
 
+void RasterizerCacheOpenGL::ReinterpretSurface(const Surface& src_surface,
+                                               const Surface& dst_surface, GLenum src_attachment,
+                                               GLenum dst_attachment) {
+
+    const auto& src_params{src_surface->GetSurfaceParams()};
+    const auto& dst_params{dst_surface->GetSurfaceParams()};
+
+    auto dest_format = GetFormatTuple(dst_params.pixel_format, dst_params.component_type);
+
+    const u32 src_bytes_per_pixel = src_params.GetFormatBpp() / 8;
+    const u32 dst_bytes_per_pixel = dst_params.GetFormatBpp() / 8;
+
+    const u32 dst_size = Tegra::Texture::CalculateSize(
+        dst_params.is_tiled, dst_bytes_per_pixel, dst_params.width, dst_params.height,
+        dst_params.depth, dst_params.block_height, dst_params.block_depth);
+
+    std::vector<Surface> surfaces = GetInRange(src_params.addr, dst_size);
+
+    std::sort(surfaces.begin(), surfaces.end(), [](const Surface& a, const Surface& b) -> bool {
+        return a->GetAddr() > b->GetAddr();
+    });
+
+    std::vector<u8> tmp_buffer(dst_size);
+    std::vector<u8> gl_buffer(dst_size);
+
+    for (auto& s : surfaces) {
+        const auto& params{s->GetSurfaceParams()};
+        u64 offset = s->GetAddr() - src_params.addr;
+        const u32 bpp = src_params.GetFormatBpp() / 8;
+        auto source_format = GetFormatTuple(params.pixel_format, params.component_type);
+        glGetTextureImage(s->Texture().handle, 0, source_format.format,
+                          source_format.type, static_cast<GLsizei>(params.size_in_bytes_total),
+                          gl_buffer.data());
+        Tegra::Texture::CopySwizzledData(params.width, params.height, params.depth,
+                                         bpp, bpp,
+                                         tmp_buffer.data() + offset, gl_buffer.data(), false,
+                                         params.block_height, params.block_depth);
+    }
+
+    Tegra::Texture::CopySwizzledData(dst_params.width, dst_params.height, dst_params.depth,
+                                     dst_bytes_per_pixel, dst_bytes_per_pixel,
+                                     tmp_buffer.data(), gl_buffer.data(), true,
+                                     dst_params.block_height, dst_params.block_depth);
+
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    const GLsizei width{static_cast<GLsizei>(dst_params.GetRect().GetWidth())};
+    const GLsizei height{static_cast<GLsizei>(dst_params.GetRect().GetHeight())};
+
+    if (dest_format.compressed) {
+        LOG_CRITICAL(HW_GPU, "Compressed copy is unimplemented!");
+        UNREACHABLE();
+    } else {
+        switch (dst_params.target) {
+        case SurfaceParams::SurfaceTarget::Texture1D:
+            glTextureSubImage1D(dst_surface->Texture().handle, 0, 0, width, dest_format.format,
+                                dest_format.type, gl_buffer.data());
+            break;
+        case SurfaceParams::SurfaceTarget::Texture2D:
+            glTextureSubImage2D(dst_surface->Texture().handle, 0, 0, 0, width, height,
+                                dest_format.format, dest_format.type, gl_buffer.data());
+            break;
+        case SurfaceParams::SurfaceTarget::Texture3D:
+        case SurfaceParams::SurfaceTarget::Texture2DArray:
+            glTextureSubImage3D(dst_surface->Texture().handle, 0, 0, 0, 0, width, height,
+                                static_cast<GLsizei>(dst_params.depth), dest_format.format,
+                                dest_format.type, gl_buffer.data());
+            break;
+        default:
+            LOG_CRITICAL(Render_OpenGL, "Unimplemented surface target={}",
+                         static_cast<u32>(dst_params.target));
+            UNREACHABLE();
+        }
+    }
+}
+
 Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
                                                const SurfaceParams& new_params) {
     // Verify surface is compatible for blitting
@@ -1132,13 +1209,15 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
                        !Settings::values.use_accurate_framebuffers};
 
     switch (new_params.target) {
-    case SurfaceParams::SurfaceTarget::Texture3D:
     case SurfaceParams::SurfaceTarget::Texture2D:
         if (is_blit) {
             BlitSurface(old_surface, new_surface, read_framebuffer.handle, draw_framebuffer.handle);
         } else {
             CopySurface(old_surface, new_surface, copy_pbo.handle);
         }
+        break;
+    case SurfaceParams::SurfaceTarget::Texture3D:
+        ReinterpretSurface(old_surface, new_surface);
         break;
     case SurfaceParams::SurfaceTarget::TextureCubemap: {
         if (old_params.rt.array_mode != 1) {
