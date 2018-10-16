@@ -151,7 +151,7 @@ private:
         }
 
         std::sort(objects.begin(), objects.end(), [](const T& a, const T& b) -> bool {
-            return a->GetLastModifiedTicks() < b->GetLastModifiedTicks();
+            return a->GetLastModifiedTicks() > b->GetLastModifiedTicks();
         });
 
         return objects;
