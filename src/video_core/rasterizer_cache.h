@@ -61,9 +61,10 @@ protected:
     }
 
     std::vector<T> GetInRange(Tegra::GPUVAddr addr, size_t size) {
-        std::vector<T> objects;
+
         if (size == 0)
-            return objects;
+            return {};
+        std::vector<T> objects;
 
         const ObjectInterval interval{addr, addr + size};
         for (auto& pair : boost::make_iterator_range(object_cache.equal_range(interval))) {

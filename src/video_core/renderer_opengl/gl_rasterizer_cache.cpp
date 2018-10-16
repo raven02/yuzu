@@ -1106,6 +1106,8 @@ void RasterizerCacheOpenGL::FermiCopySurface(
     FastCopySurface(GetSurface(src_params, true), GetSurface(dst_params, false));
 }
 
+#pragma optimize("", off)
+
 void RasterizerCacheOpenGL::ReinterpretSurface(const Surface& src_surface,
                                                const Surface& dst_surface, GLenum src_attachment,
                                                GLenum dst_attachment) {
@@ -1136,19 +1138,19 @@ void RasterizerCacheOpenGL::ReinterpretSurface(const Surface& src_surface,
         u64 offset = s->GetAddr() - src_params.addr;
         const u32 bpp = src_params.GetFormatBpp() / 8;
         auto source_format = GetFormatTuple(params.pixel_format, params.component_type);
-        glGetTextureImage(s->Texture().handle, 0, source_format.format,
-                          source_format.type, static_cast<GLsizei>(params.size_in_bytes_total),
-                          gl_buffer.data());
-        Tegra::Texture::CopySwizzledData(params.width, params.height, params.depth,
-                                         bpp, bpp,
+        glGetTextureImage(s->Texture().handle, 0, source_format.format, source_format.type,
+                          static_cast<GLsizei>(params.size_in_bytes_total), gl_buffer.data());
+        Tegra::Texture::CopySwizzledData(params.width, params.height, params.depth, bpp, bpp,
                                          tmp_buffer.data() + offset, gl_buffer.data(), false,
                                          params.block_height, params.block_depth);
     }
 
+    surfaces.clear();
+
     Tegra::Texture::CopySwizzledData(dst_params.width, dst_params.height, dst_params.depth,
-                                     dst_bytes_per_pixel, dst_bytes_per_pixel,
-                                     tmp_buffer.data(), gl_buffer.data(), true,
-                                     dst_params.block_height, dst_params.block_depth);
+                                     dst_bytes_per_pixel, dst_bytes_per_pixel, tmp_buffer.data(),
+                                     gl_buffer.data(), true, dst_params.block_height,
+                                     dst_params.block_depth);
 
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -1175,6 +1177,16 @@ void RasterizerCacheOpenGL::ReinterpretSurface(const Surface& src_surface,
                                 static_cast<GLsizei>(dst_params.depth), dest_format.format,
                                 dest_format.type, gl_buffer.data());
             break;
+        case SurfaceParams::SurfaceTarget::TextureCubemap: {
+            u64 buffer_offset = 0;
+            for (std::size_t face = 0; face < dst_params.depth; ++face) {
+                glTexSubImage2D(static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face), 0, 0, 0,
+                                width, height, dest_format.format, dest_format.type,
+                                &gl_buffer[buffer_offset]);
+                buffer_offset += dst_params.size_in_bytes_2d;
+            }
+            break;
+        }
         default:
             LOG_CRITICAL(Render_OpenGL, "Unimplemented surface target={}",
                          static_cast<u32>(dst_params.target));
@@ -1220,38 +1232,7 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
         ReinterpretSurface(old_surface, new_surface);
         break;
     case SurfaceParams::SurfaceTarget::TextureCubemap: {
-        if (old_params.rt.array_mode != 1) {
-            // TODO(bunnei): This is used by Breath of the Wild, I'm not sure how to implement this
-            // yet (array rendering used as a cubemap texture).
-            LOG_CRITICAL(HW_GPU, "Unhandled rendertarget array_mode {}", old_params.rt.array_mode);
-            UNREACHABLE();
-            return new_surface;
-        }
-
-        // This seems to be used for render-to-cubemap texture
-        ASSERT_MSG(old_params.target == SurfaceParams::SurfaceTarget::Texture2D, "Unexpected");
-        ASSERT_MSG(old_params.pixel_format == new_params.pixel_format, "Unexpected");
-        ASSERT_MSG(old_params.rt.base_layer == 0, "Unimplemented");
-
-        // TODO(bunnei): Verify the below - this stride seems to be in 32-bit words, not pixels.
-        // Tested with Splatoon 2, Super Mario Odyssey, and Breath of the Wild.
-        const std::size_t byte_stride{old_params.rt.layer_stride * sizeof(u32)};
-
-        for (std::size_t index = 0; index < new_params.depth; ++index) {
-            Surface face_surface{TryGetReservedSurface(old_params)};
-            ASSERT_MSG(face_surface, "Unexpected");
-
-            if (is_blit) {
-                BlitSurface(face_surface, new_surface, read_framebuffer.handle,
-                            draw_framebuffer.handle, face_surface->GetSurfaceParams().rt.index,
-                            new_params.rt.index, index);
-            } else {
-                CopySurface(face_surface, new_surface, copy_pbo.handle,
-                            face_surface->GetSurfaceParams().rt.index, new_params.rt.index, index);
-            }
-
-            old_params.addr += byte_stride;
-        }
+        ReinterpretSurface(old_surface, new_surface);
         break;
     }
     default:
