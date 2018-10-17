@@ -156,7 +156,10 @@ struct TICEntry {
         BitField<25, 3, SwizzleSource> z_source;
         BitField<28, 3, SwizzleSource> w_source;
     };
-    u32 address_low;
+    union {
+        u32 address_low;
+        BitField<5, 2, u32> gob_depth_offset;
+    };
     union {
         BitField<0, 16, u32> address_high;
         BitField<21, 3, TICHeaderVersion> header_version;
@@ -166,6 +169,7 @@ struct TICEntry {
         BitField<3, 3, u32> block_height;
         BitField<6, 3, u32> block_depth;
 
+        BitField<10, 3, u32> tile_width;
         // High 16 bits of the pitch value
         BitField<0, 16, u32> pitch_high;
 
@@ -180,7 +184,12 @@ struct TICEntry {
         BitField<16, 15, u32> depth_minus_1;
     };
 
-    INSERT_PADDING_BYTES(8);
+    INSERT_PADDING_BYTES(4);
+
+    union {
+        BitField<0, 4, u32> min_mipmap;
+        BitField<4, 4, u32> max_mipmap;
+    };
 
     GPUVAddr Address() const {
         return static_cast<GPUVAddr>((static_cast<GPUVAddr>(address_high) << 32) | address_low);

@@ -124,6 +124,7 @@ void SurfaceParams::InitCacheParameters(Tegra::GPUVAddr gpu_addr_) {
         break;
     }
 
+    params.is_layered = SurfaceTargetIsLayered(params.target);
     params.max_mip_level = config.tic.max_mip_level + 1;
     params.rt = {};
 
@@ -890,22 +891,21 @@ void CachedSurface::LoadGLBuffer() {
         if (params.target == SurfaceParams::SurfaceTarget::Texture2D) {
             // TODO(Blinkhawk): Eliminate this condition once all texture types are implemented.
             depth = 1U;
-            block_depth = 1U;
         }
 
         if (params.target == SurfaceParams::SurfaceTarget::TextureCubemap) {
             // TODO(Blinkhawk): Figure where this number comes from and if it's constant or depends
             // on the objects size and/or address.
-            u64 magic_number = 0;
+
             u64 offset = 0;
             u64 offset_gl = 0;
-            u64 size = params.SizeInBytesCubeFace();
             u64 gl_size = params.SizeInBytesCubeFaceGL();
+            u64 magic_number = params.LayerMemorySize();
             for (u32 i = 0; i < depth; i++) {
                 morton_to_gl_fns[static_cast<std::size_t>(params.pixel_format)](
                     params.width, params.block_height, params.height, block_depth, 1,
                     gl_buffer.data() + offset_gl, gl_size, params.addr + offset);
-                offset += size + magic_number;
+                offset += magic_number;
                 offset_gl += gl_size;
             }
         } else {
@@ -937,8 +937,12 @@ void CachedSurface::FlushGLBuffer() {
     glPixelStorei(GL_PACK_ROW_LENGTH, static_cast<GLint>(params.width));
     ASSERT(!tuple.compressed);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-    glGetTextureImage(texture.handle, 0, tuple.format, tuple.type, gl_buffer.size(),
-                      gl_buffer.data());
+    if (!tuple.compressed) {
+        glGetTextureImage(texture.handle, 0, tuple.format, tuple.type, gl_buffer.size(),
+                          gl_buffer.data());
+    } else {
+        glGetCompressedTextureImage(texture.handle, 0, gl_buffer.size(), gl_buffer.data());
+    }
     glPixelStorei(GL_PACK_ROW_LENGTH, 0);
     ConvertFormatAsNeeded_FlushGLBuffer(gl_buffer, params.pixel_format, params.width,
                                         params.height);
@@ -1196,7 +1200,7 @@ void RasterizerCacheOpenGL::AccurateCopySurface(const Surface& src_surface,
                                                 const Surface& dst_surface) {
     const auto& src_params{src_surface->GetSurfaceParams()};
     const auto& dst_params{dst_surface->GetSurfaceParams()};
-    FlushRegion(src_params.addr, dst_params.size_in_bytes);
+    FlushRegion(src_params.addr, dst_params.MemorySize());
     LoadSurface(dst_surface);
 }
 

@@ -168,6 +168,23 @@ struct SurfaceParams {
         }
     }
 
+    static bool SurfaceTargetIsLayered(SurfaceTarget target) {
+        switch (target) {
+        case SurfaceTarget::Texture1D:
+        case SurfaceTarget::Texture2D:
+        case SurfaceTarget::Texture3D:
+            return false;
+        case SurfaceTarget::Texture1DArray:
+        case SurfaceTarget::Texture2DArray:
+        case SurfaceTarget::TextureCubemap:
+            return true;
+        default:
+            LOG_CRITICAL(HW_GPU, "Unimplemented surface_target={}", static_cast<u32>(target));
+            UNREACHABLE();
+            return false;
+        }
+    }
+
     /**
      * Gets the compression factor for the specified PixelFormat. This applies to just the
      * "compressed width" and "compressed height", not the overall compression factor of a
@@ -732,6 +749,17 @@ struct SurfaceParams {
         return SizeInBytesRaw(true);
     }
 
+    std::size_t MemorySize() const {
+        std::size_t size = InnerMemorySize(is_layered);
+        if (is_layered)
+            return size * depth;
+        return size;
+    }
+
+    std::size_t LayerMemorySize() const {
+        return InnerMemorySize(true);
+    }
+
     /// Returns the size of this surface as a cube face in bytes
     std::size_t SizeInBytesCubeFace() const {
         return size_in_bytes / 6;
@@ -782,6 +810,7 @@ struct SurfaceParams {
     u32 unaligned_height;
     SurfaceTarget target;
     u32 max_mip_level;
+    bool is_layered;
 
     // Parameters used for caching
     VAddr addr;
@@ -797,8 +826,33 @@ struct SurfaceParams {
         u32 layer_stride;
         u32 base_layer;
     } rt;
-};
 
+private:
+
+    std::size_t InnerMemorySize(bool layer_only = false) const {
+        const u32 compression_factor{GetCompressionFactor(pixel_format)};
+        const u32 bytes_per_pixel{GetBytesPerPixel(pixel_format)};
+        u32 m_depth = (layer_only ? 1U : depth);
+        std::size_t size =
+            Tegra::Texture::CalculateSize(is_tiled, bytes_per_pixel, width,
+                                          height, m_depth, block_height, block_depth);
+        u32 m_width = width;
+        u32 m_height = height;
+        u32 m_block_height = block_height;
+        u32 m_block_depth = block_depth;
+        std::size_t block_size_bytes = 512 * block_height * block_depth; // 512 is GOB size
+        for (u32 i = 1; i <= max_mip_level; i++) {
+            m_width = std::max(1U, m_width / 2);
+            m_height = std::max(1U, m_height / 2);
+            m_depth = std::max(1U, m_depth / 2);
+            m_block_height = std::max(1U, m_block_height / 2);
+            m_block_depth = std::max(1U, m_block_depth / 2);
+            size += Tegra::Texture::CalculateSize(is_tiled, bytes_per_pixel, m_width, m_height,
+                                                  m_depth, m_block_height, m_block_depth);
+        }
+        return Common::AlignUp(size / (compression_factor * compression_factor), block_size_bytes);
+    }
+}; // namespace OpenGL
 }; // namespace OpenGL
 
 /// Hashable variation of SurfaceParams, used for a key in the surface cache
@@ -876,7 +930,8 @@ public:
     /// Get the depth surface based on the framebuffer configuration
     Surface GetDepthBufferSurface(bool preserve_contents);
 
-    /// Get the color surface based on the framebuffer configuration and the specified render target
+    /// Get the color surface based on the framebuffer configuration and the specified render
+    /// target
     Surface GetColorBufferSurface(std::size_t index, bool preserve_contents);
 
     /// Tries to find a framebuffer using on the provided CPU address
@@ -913,8 +968,8 @@ private:
     OGLFramebuffer read_framebuffer;
     OGLFramebuffer draw_framebuffer;
 
-    /// Use a Pixel Buffer Object to download the previous texture and then upload it to the new one
-    /// using the new format.
+    /// Use a Pixel Buffer Object to download the previous texture and then upload it to the new
+    /// one using the new format.
     OGLBuffer copy_pbo;
 };
 
