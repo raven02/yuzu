@@ -81,6 +81,8 @@ OpenGLState::OpenGLState() {
     clip_distance = {};
 
     point.size = 1;
+    point.smooth_enabled = false;
+    point.program_defined_enabled = false;
 }
 
 void OpenGLState::Apply() const {
@@ -306,6 +308,20 @@ void OpenGLState::Apply() const {
     // Point
     if (point.size != cur_state.point.size) {
         glPointSize(point.size);
+    }
+    if (point.smooth_enabled != cur_state.point.smooth_enabled) {
+        if (point.smooth_enabled) {
+            //glEnable( GL_POINT_SMOOTH ); --surpringly GL_LINE_SMOOTH is in
+        } else {
+            //glDisable( GL_POINT_SMOOTH );
+        }
+    }
+    if (point.program_defined_enabled != cur_state.point.program_defined_enabled) {
+        if (point.program_defined_enabled) {
+            glEnable( GL_PROGRAM_POINT_SIZE );
+        } else {
+            glDisable( GL_PROGRAM_POINT_SIZE );
+        }
     }
 
     cur_state = *this;

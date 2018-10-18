@@ -126,6 +126,8 @@ void SurfaceParams::InitCacheParameters(Tegra::GPUVAddr gpu_addr_) {
 
     params.is_layered = SurfaceTargetIsLayered(params.target);
     params.max_mip_level = config.tic.max_mip_level + 1;
+    params.min_mipmap = config.tic.min_mipmap;
+    params.max_mipmap = config.tic.max_mipmap;
     params.rt = {};
 
     params.InitCacheParameters(config.tic.Address());
@@ -876,6 +878,8 @@ static void ConvertFormatAsNeeded_FlushGLBuffer(std::vector<u8>& data, PixelForm
     }
 }
 
+#pragma optimize("", off)
+
 MICROPROFILE_DEFINE(OpenGL_SurfaceLoad, "OpenGL", "Surface Load", MP_RGB(128, 64, 192));
 void CachedSurface::LoadGLBuffer() {
     MICROPROFILE_SCOPE(OpenGL_SurfaceLoad);
@@ -893,19 +897,16 @@ void CachedSurface::LoadGLBuffer() {
             depth = 1U;
         }
 
-        if (params.target == SurfaceParams::SurfaceTarget::TextureCubemap) {
-            // TODO(Blinkhawk): Figure where this number comes from and if it's constant or depends
-            // on the objects size and/or address.
-
+        if (params.is_layered) {
             u64 offset = 0;
             u64 offset_gl = 0;
-            u64 gl_size = params.SizeInBytesCubeFaceGL();
-            u64 magic_number = params.LayerMemorySize();
+            u64 layer_size = params.LayerMemorySize();
+            u64 gl_size = params.LayerSizeGL();
             for (u32 i = 0; i < depth; i++) {
                 morton_to_gl_fns[static_cast<std::size_t>(params.pixel_format)](
                     params.width, params.block_height, params.height, block_depth, 1,
                     gl_buffer.data() + offset_gl, gl_size, params.addr + offset);
-                offset += magic_number;
+                offset += layer_size;
                 offset_gl += gl_size;
             }
         } else {

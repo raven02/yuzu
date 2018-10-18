@@ -183,6 +183,16 @@ void CopySwizzledData(u32 width, u32 height, u32 depth, u32 bytes_per_pixel,
     }
 }
 
+void FlipLinearTexture(u32 width, u32 height, u32 bytes_per_pixel, u8* texture) {
+    u32 pitch = width*bytes_per_pixel;
+    std::vector<u8> tmp(pitch);
+    for (u32 h = 0; h < height / 2; h++) {
+        std::memcpy(tmp.data(), &texture[h*pitch], pitch);
+        std::memcpy(&texture[h*pitch], &texture[(height - h - 1)*pitch], pitch);
+        std::memcpy(&texture[(height - h - 1)*pitch],tmp.data(), pitch);
+    }
+}
+
 u32 BytesPerPixel(TextureFormat format) {
     switch (format) {
     case TextureFormat::DXT1:
@@ -280,13 +290,13 @@ std::vector<u8> DecodeTexture(const std::vector<u8>& texture_data, TextureFormat
 std::size_t CalculateSize(bool tiled, u32 bytes_per_pixel, u32 width, u32 height, u32 depth,
                           u32 block_height, u32 block_depth) {
     if (tiled) {
-        const u32 gobs_in_x = 64 / bytes_per_pixel;
+        const u32 gobs_in_x = 64;
         const u32 gobs_in_y = 8;
         const u32 gobs_in_z = 1;
-        const u32 aligned_width = Common::AlignUp(width, gobs_in_x);
+        const u32 aligned_width = Common::AlignUp(width * bytes_per_pixel, gobs_in_x);
         const u32 aligned_height = Common::AlignUp(height, gobs_in_y * block_height);
         const u32 aligned_depth = Common::AlignUp(depth, gobs_in_z * block_depth);
-        return aligned_width * aligned_height * aligned_depth * bytes_per_pixel;
+        return aligned_width * aligned_height * aligned_depth;
     } else {
         return width * height * depth * bytes_per_pixel;
     }

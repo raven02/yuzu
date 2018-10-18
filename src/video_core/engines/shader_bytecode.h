@@ -79,6 +79,7 @@ union Attribute {
     constexpr explicit Attribute(u64 value) : value(value) {}
 
     enum class Index : u64 {
+        PointSize = 6,
         Position = 7,
         Attribute_0 = 8,
         Attribute_31 = 39,
@@ -1080,6 +1081,7 @@ union Instruction {
     BitField<61, 1, u64> is_b_imm;
     BitField<60, 1, u64> is_b_gpr;
     BitField<59, 1, u64> is_c_gpr;
+    BitField<0, 5, ControlCode> flow_control_code;
 
     Attribute attribute;
     Sampler sampler;

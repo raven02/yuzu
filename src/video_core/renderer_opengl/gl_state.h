@@ -144,6 +144,8 @@ public:
 
     struct {
         float size; // GL_POINT_SIZE
+        bool smooth_enabled;
+        bool program_defined_enabled;
     } point;
 
     std::array<bool, 2> clip_distance; // GL_CLIP_DISTANCE

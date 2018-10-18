@@ -803,7 +803,10 @@ public:
                     }
                 } instanced_arrays;
 
-                INSERT_PADDING_WORDS(0x6);
+                INSERT_PADDING_WORDS(0x4);
+                BitField<0, 1, u32> program_defined_point_size;
+                INSERT_PADDING_WORDS(0x1);
+
 
                 Cull cull;
 
@@ -1080,6 +1083,7 @@ ASSERT_REG_POSITION(code_address, 0x582);
 ASSERT_REG_POSITION(draw, 0x585);
 ASSERT_REG_POSITION(index_array, 0x5F2);
 ASSERT_REG_POSITION(instanced_arrays, 0x620);
+ASSERT_REG_POSITION(program_defined_point_size, 0x644);
 ASSERT_REG_POSITION(cull, 0x646);
 ASSERT_REG_POSITION(logic_op, 0x671);
 ASSERT_REG_POSITION(clear_buffers, 0x674);

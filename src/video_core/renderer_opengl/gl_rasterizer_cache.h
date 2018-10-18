@@ -760,6 +760,10 @@ struct SurfaceParams {
         return InnerMemorySize(true);
     }
 
+    std::size_t LayerSizeGL() const {
+        return SizeInBytesRaw(true) / depth;
+    }
+
     /// Returns the size of this surface as a cube face in bytes
     std::size_t SizeInBytesCubeFace() const {
         return size_in_bytes / 6;
@@ -810,6 +814,8 @@ struct SurfaceParams {
     u32 unaligned_height;
     SurfaceTarget target;
     u32 max_mip_level;
+    u32 min_mipmap;
+    u32 max_mipmap;
     bool is_layered;
 
     // Parameters used for caching
@@ -833,15 +839,15 @@ private:
         const u32 compression_factor{GetCompressionFactor(pixel_format)};
         const u32 bytes_per_pixel{GetBytesPerPixel(pixel_format)};
         u32 m_depth = (layer_only ? 1U : depth);
+        u32 m_width = std::max(1U, width / compression_factor);
+        u32 m_height = std::max(1U, height / compression_factor);
         std::size_t size =
-            Tegra::Texture::CalculateSize(is_tiled, bytes_per_pixel, width,
-                                          height, m_depth, block_height, block_depth);
-        u32 m_width = width;
-        u32 m_height = height;
+            Tegra::Texture::CalculateSize(is_tiled, bytes_per_pixel, m_width,
+                                          m_height, m_depth, block_height, block_depth);
         u32 m_block_height = block_height;
         u32 m_block_depth = block_depth;
         std::size_t block_size_bytes = 512 * block_height * block_depth; // 512 is GOB size
-        for (u32 i = 1; i <= max_mip_level; i++) {
+        for (u32 i = 1; i < max_mip_level; i++) {
             m_width = std::max(1U, m_width / 2);
             m_height = std::max(1U, m_height / 2);
             m_depth = std::max(1U, m_depth / 2);
@@ -850,7 +856,7 @@ private:
             size += Tegra::Texture::CalculateSize(is_tiled, bytes_per_pixel, m_width, m_height,
                                                   m_depth, m_block_height, m_block_depth);
         }
-        return Common::AlignUp(size / (compression_factor * compression_factor), block_size_bytes);
+        return Common::AlignUp(size, block_size_bytes);
     }
 }; // namespace OpenGL
 }; // namespace OpenGL

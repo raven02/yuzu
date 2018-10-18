@@ -2015,7 +2015,7 @@ private:
                            "Unaligned attribute loads are not supported");
 
                 u64 next_element = instr.attribute.fmt20.element;
-                u64 next_index = static_cast<u64>(instr.attribute.fmt20.index.Value());
+                u64 next_index = static_cast<u64>(instr.attribute.fmt20.index.Value()) & 0x03F;
 
                 const auto StoreNextElement = [&](u32 reg_offset) {
                     regs.SetOutputAttributeToRegister(static_cast<Attribute::Index>(next_index),
@@ -2867,6 +2867,12 @@ private:
                     EmitFragmentOutputsWrite();
                 }
 
+                const Tegra::Shader::ControlCode cc = instr.flow_control_code;
+                if (cc != Tegra::Shader::ControlCode::T) {
+                    LOG_CRITICAL(HW_GPU, "EXIT Control Code used: {}", static_cast<u32>(cc));
+                    UNREACHABLE();
+                }
+
                 switch (instr.flow.cond) {
                 case Tegra::Shader::FlowCondition::Always:
                     shader.AddLine("return true;");
@@ -2896,6 +2902,11 @@ private:
 
                 // Enclose "discard" in a conditional, so that GLSL compilation does not complain
                 // about unexecuted instructions that may follow this.
+                const Tegra::Shader::ControlCode cc = instr.flow_control_code;
+                if (cc != Tegra::Shader::ControlCode::T) {
+                    LOG_CRITICAL(HW_GPU, "KIL Control Code used: {}", static_cast<u32>(cc));
+                    UNREACHABLE();
+                }
                 shader.AddLine("if (true) {");
                 ++shader.scope;
                 shader.AddLine("discard;");
@@ -2954,6 +2965,11 @@ private:
                 ASSERT_MSG(instr.bra.constant_buffer == 0,
                            "BRA with constant buffers are not implemented");
                 const u32 target = offset + instr.bra.GetBranchTarget();
+                const Tegra::Shader::ControlCode cc = instr.flow_control_code;
+                if (cc != Tegra::Shader::ControlCode::T) {
+                    LOG_CRITICAL(HW_GPU, "BRA Control Code used: {}", static_cast<u32>(cc));
+                    UNREACHABLE();
+                }
                 shader.AddLine("{ jmp_to = " + std::to_string(target) + "u; break; }");
                 break;
             }
@@ -2984,6 +3000,11 @@ private:
             case OpCode::Id::SYNC: {
                 // The SYNC opcode jumps to the address previously set by the SSY opcode
                 ASSERT(instr.flow.cond == Tegra::Shader::FlowCondition::Always);
+                const Tegra::Shader::ControlCode cc = instr.flow_control_code;
+                if (cc != Tegra::Shader::ControlCode::T) {
+                    LOG_CRITICAL(HW_GPU, "SYNC Control Code used: {}", static_cast<u32>(cc));
+                    UNREACHABLE();
+                }
                 EmitPopFromSSYStack();
                 break;
             }
