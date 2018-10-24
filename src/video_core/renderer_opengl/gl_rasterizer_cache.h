@@ -799,6 +799,12 @@ struct SurfaceParams {
     }
 
     u32 MipBlockHeight(u32 mip_level) const {
+        u32 height = MipHeight(mip_level);
+        u32 bh = block_height;
+        while (bh != 1 && height / bh <= 16) {
+            bh = bh >> 1;
+        }
+        return bh;
         return std::max(1U, block_height >> mip_level);
     }
 
@@ -871,8 +877,16 @@ struct SurfaceParams {
         }
     }
 
+    std::string LayoutInfo() const {
+        if (is_tiled) {
+            return 'B' + std::to_string(block_height);
+        } else {
+            return "L";
+        }
+    }
+
     std::string IdentityString() const {
-        return ClassName() + '_' + TargetName() + '_' + (is_tiled ? 'T' : 'L');
+        return ClassName() + '_' + TargetName() + '_' + LayoutInfo();
     }
 
     bool is_tiled;

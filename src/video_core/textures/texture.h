@@ -180,7 +180,12 @@ struct TICEntry {
         BitField<16, 15, u32> depth_minus_1;
     };
 
-    INSERT_PADDING_BYTES(8);
+    INSERT_PADDING_BYTES(4);
+
+    union {
+        BitField<0, 3, u32> min_lod;
+        BitField<4, 3, u32> max_lod;
+    };
 
     GPUVAddr Address() const {
         return static_cast<GPUVAddr>((static_cast<GPUVAddr>(address_high) << 32) | address_low);
@@ -276,7 +281,11 @@ struct TSCEntry {
         BitField<4, 2, TextureFilter> min_filter;
         BitField<6, 2, TextureMipmapFilter> mip_filter;
     };
-    INSERT_PADDING_BYTES(8);
+    union {
+        BitField<0, 12, u32> min_lod;
+        BitField<12, 12, u32> max_lod;
+    };
+    INSERT_PADDING_BYTES(4);
     float border_color_r;
     float border_color_g;
     float border_color_b;
