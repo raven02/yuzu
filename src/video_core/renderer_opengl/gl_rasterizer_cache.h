@@ -730,7 +730,7 @@ struct SurfaceParams {
     }
 
     /// Returns the rectangle corresponding to this surface
-    MathUtil::Rectangle<u32> GetRect() const;
+    MathUtil::Rectangle<u32> GetRect(u32 mip_level = 0) const;
 
     /// Returns the total size of this surface in bytes, adjusted for compression
     std::size_t SizeInBytesRaw(bool ignore_tiled = false) const {
@@ -778,8 +778,8 @@ struct SurfaceParams {
         return InnerMipmapMemorySize(mip_level, true, is_layered, false);
     }
 
-    std::size_t GetMipmapSizeGL(u32 mip_level) const {
-        std::size_t size = InnerMipmapMemorySize(mip_level, true, is_layered, true);
+    std::size_t GetMipmapSizeGL(u32 mip_level, bool ignore_compressed = true) const {
+        std::size_t size = InnerMipmapMemorySize(mip_level, true, is_layered, ignore_compressed);
         if (is_layered)
             return size * depth;
         return size;
@@ -941,6 +941,9 @@ public:
     void UploadGLTexture(GLuint read_fb_handle, GLuint draw_fb_handle);
 
 private:
+
+    void UploadGLMipmapTexture(u32 mip_map, GLuint read_fb_handle, GLuint draw_fb_handle);
+
     OGLTexture texture;
     std::vector<std::vector<u8>> gl_buffer;
     SurfaceParams params;

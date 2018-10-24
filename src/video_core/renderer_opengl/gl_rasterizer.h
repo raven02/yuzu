@@ -88,11 +88,12 @@ private:
         /// SamplerInfo struct.
         void Create();
         /// Syncs the sampler object with the config, updating any necessary state.
-        void SyncWithConfig(const Tegra::Texture::TSCEntry& config);
+        void SyncWithConfig(const Tegra::Texture::TSCEntry& config, const Tegra::Texture::TICEntry& tic);
 
     private:
         Tegra::Texture::TextureFilter mag_filter;
         Tegra::Texture::TextureFilter min_filter;
+        Tegra::Texture::TextureMipmapFilter mip_filter;
         Tegra::Texture::WrapMode wrap_u;
         Tegra::Texture::WrapMode wrap_v;
         Tegra::Texture::WrapMode wrap_p;

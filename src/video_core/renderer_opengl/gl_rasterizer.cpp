@@ -703,6 +703,7 @@ bool RasterizerOpenGL::AccelerateDisplay(const Tegra::FramebufferConfig& config,
 void RasterizerOpenGL::SamplerInfo::Create() {
     sampler.Create();
     mag_filter = min_filter = Tegra::Texture::TextureFilter::Linear;
+    mip_filter = Tegra::Texture::TextureMipmapFilter::None;
     wrap_u = wrap_v = wrap_p = Tegra::Texture::WrapMode::Wrap;
     uses_depth_compare = false;
     depth_compare_func = Tegra::Texture::DepthCompareFunc::Never;
@@ -713,16 +714,26 @@ void RasterizerOpenGL::SamplerInfo::Create() {
     glSamplerParameteri(sampler.handle, GL_TEXTURE_COMPARE_FUNC, GL_NEVER);
 }
 
-void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::TSCEntry& config) {
+void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::TSCEntry& config, const Tegra::Texture::TICEntry& tic) {
     const GLuint s = sampler.handle;
 
     if (mag_filter != config.mag_filter) {
         mag_filter = config.mag_filter;
-        glSamplerParameteri(s, GL_TEXTURE_MAG_FILTER, MaxwellToGL::TextureFilterMode(mag_filter));
+        glSamplerParameteri(
+            s, GL_TEXTURE_MAG_FILTER,
+            MaxwellToGL::TextureFilterMode(mag_filter, Tegra::Texture::TextureMipmapFilter::None));
     }
-    if (min_filter != config.min_filter) {
+    if (min_filter != config.min_filter || mip_filter != config.mip_filter) {
         min_filter = config.min_filter;
-        glSamplerParameteri(s, GL_TEXTURE_MIN_FILTER, MaxwellToGL::TextureFilterMode(min_filter));
+        mip_filter = config.mip_filter;
+        // this is a workaround some GL bug
+        //if (tic.max_mip_level != 0) {
+            glSamplerParameteri(s, GL_TEXTURE_MIN_FILTER,
+                                MaxwellToGL::TextureFilterMode(min_filter, mip_filter));
+        //} else {
+            //glSamplerParameteri(s, GL_TEXTURE_MIN_FILTER,
+                                //MaxwellToGL::TextureFilterMode(min_filter, Tegra::Texture::TextureMipmapFilter::None));
+        //}
     }
 
     if (wrap_u != config.wrap_u) {
@@ -859,7 +870,7 @@ u32 RasterizerOpenGL::SetupTextures(Maxwell::ShaderStage stage, Shader& shader,
             continue;
         }
 
-        texture_samplers[current_bindpoint].SyncWithConfig(texture.tsc);
+        texture_samplers[current_bindpoint].SyncWithConfig(texture.tsc, texture.tic);
         Surface surface = res_cache.GetTextureSurface(texture, entry);
         if (surface != nullptr) {
             state.texture_units[current_bindpoint].texture = surface->Texture().handle;
