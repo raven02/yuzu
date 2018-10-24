@@ -22,6 +22,7 @@
 
 namespace OpenGL {
 
+using SurfaceClass = SurfaceParams::SurfaceClass;
 using SurfaceType = SurfaceParams::SurfaceType;
 using PixelFormat = SurfaceParams::PixelFormat;
 using ComponentType = SurfaceParams::ComponentType;
@@ -123,6 +124,7 @@ std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only, bool 
     params.height = Common::AlignUp(config.tic.Height(), GetCompressionFactor(params.pixel_format));
     params.unaligned_height = config.tic.Height();
     params.target = SurfaceTargetFromTextureType(config.tic.texture_type);
+    params.identity = SurfaceClass::Uploaded;
 
     switch (params.target) {
     case SurfaceTarget::Texture1D:
@@ -179,6 +181,7 @@ std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only, bool 
     params.height = config.height;
     params.unaligned_height = config.height;
     params.target = SurfaceTarget::Texture2D;
+    params.identity = SurfaceClass::RenderTarget;
     params.depth = 1;
     params.max_mip_level = 1;
     params.is_layered = false;
@@ -212,6 +215,7 @@ std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only, bool 
     params.height = zeta_height;
     params.unaligned_height = zeta_height;
     params.target = SurfaceTarget::Texture2D;
+    params.identity = SurfaceClass::DepthBuffer;
     params.depth = 1;
     params.max_mip_level = 1;
     params.is_layered = false;
@@ -237,6 +241,7 @@ std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only, bool 
     params.height = config.height;
     params.unaligned_height = config.height;
     params.target = SurfaceTarget::Texture2D;
+    params.identity = SurfaceClass::Copy;
     params.depth = 1;
     params.max_mip_level = 1;
     params.rt = {};
@@ -823,8 +828,7 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
     glTexParameteri(SurfaceTargetToGL(params.target), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(SurfaceTargetToGL(params.target), GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    VideoCore::LabelGLObject(GL_TEXTURE, texture.handle, params.addr,
-                             SurfaceParams::SurfaceTargetName(params.target));
+    VideoCore::LabelGLObject(GL_TEXTURE, texture.handle, params.addr, params.IdentityString());
 
     // Clamp size to mapped GPU memory region
     // TODO(bunnei): Super Mario Odyssey maps a 0x40000 byte region and then uses it for a 0x80000
