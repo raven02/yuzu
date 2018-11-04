@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -190,10 +191,7 @@ private:
     ScreenInfo& screen_info;
 
     std::unique_ptr<GLShader::ProgramManager> shader_program_manager;
-    std::map<std::array<Tegra::Engines::Maxwell3D::Regs::VertexAttribute,
-                        Tegra::Engines::Maxwell3D::Regs::NumVertexAttributes>,
-             OGLVertexArray>
-        vertex_array_cache;
+    std::unordered_map<u64, OGLVertexArray> vertex_array_cache;
 
     std::array<SamplerInfo, Tegra::Engines::Maxwell3D::Regs::NumTextureSamplers> texture_samplers;
 

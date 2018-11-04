@@ -124,10 +124,23 @@ RasterizerOpenGL::~RasterizerOpenGL() {}
 
 void RasterizerOpenGL::SetupVertexArrays() {
     MICROPROFILE_SCOPE(OpenGL_VAO);
+    static u64 last_bindings = 0;
+    static u64 last_vbo = 0;
     const auto& gpu = Core::System::GetInstance().GPU().Maxwell3D();
     const auto& regs = gpu.regs;
 
-    auto [iter, is_cache_miss] = vertex_array_cache.try_emplace(regs.vertex_attrib_format);
+    u64 bindings_hash =
+        Common::CityHash64(reinterpret_cast<const char*>(&regs.vertex_attrib_format),
+                           sizeof(regs.vertex_attrib_format));
+    u64 vbo_hash = Common::CityHash64(reinterpret_cast<const char*>(&regs.vertex_array),
+                                      sizeof(regs.vertex_array));
+    if (bindings_hash == last_bindings) {
+        if (vbo_hash == last_vbo)
+            return;
+    }
+    last_bindings = bindings_hash;
+    last_vbo = vbo_hash;
+    auto [iter, is_cache_miss] = vertex_array_cache.try_emplace(bindings_hash);
     auto& VAO = iter->second;
 
     if (is_cache_miss) {
