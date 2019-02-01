@@ -1047,6 +1047,13 @@ void RasterizerCacheOpenGL::FastLayeredCopySurface(const Surface& src_surface,
     }
 }
 
+void RasterizerCacheOpenGL::NotifyFramebufferChange(Surface& triggering_surface) {
+    const auto& params{triggering_surface->GetSurfaceParams()};
+    if (!params.is_tiled) {
+        triggering_surface->Flush();
+    }
+}
+
 void RasterizerCacheOpenGL::FermiCopySurface(
     const Tegra::Engines::Fermi2D::Regs::Surface& src_config,
     const Tegra::Engines::Fermi2D::Regs::Surface& dst_config) {

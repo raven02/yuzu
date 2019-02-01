@@ -507,6 +507,7 @@ void RasterizerOpenGL::ConfigureFramebuffers(OpenGLState& current_state, bool us
 
     FramebufferCacheKey fbkey;
 
+    static Surface old_rts[Maxwell::NumRenderTargets];
     if (using_color_fb) {
         if (single_color_target) {
             // Used when just a single color attachment is enabled, e.g. for clearing a color buffer
@@ -514,6 +515,10 @@ void RasterizerOpenGL::ConfigureFramebuffers(OpenGLState& current_state, bool us
                 res_cache.GetColorBufferSurface(*single_color_target, preserve_contents);
 
             if (color_surface) {
+                if (old_rts[0] && old_rts[0] != color_surface) {
+                    res_cache.NotifyFramebufferChange(old_rts[0]);
+                }
+                old_rts[0] = color_surface;
                 // Assume that a surface will be written to if it is used as a framebuffer, even if
                 // the shader doesn't actually write to it.
                 color_surface->MarkAsModified(true, res_cache);
@@ -532,6 +537,10 @@ void RasterizerOpenGL::ConfigureFramebuffers(OpenGLState& current_state, bool us
                 Surface color_surface = res_cache.GetColorBufferSurface(index, preserve_contents);
 
                 if (color_surface) {
+                    if (old_rts[index] != nullptr && old_rts[index] != color_surface) {
+                        res_cache.NotifyFramebufferChange(old_rts[index]);
+                    }
+                    old_rts[index] = color_surface;
                     // Assume that a surface will be written to if it is used as a framebuffer, even
                     // if the shader doesn't actually write to it.
                     color_surface->MarkAsModified(true, res_cache);

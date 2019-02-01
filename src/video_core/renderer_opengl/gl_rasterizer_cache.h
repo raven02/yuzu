@@ -418,6 +418,8 @@ public:
     void FermiCopySurface(const Tegra::Engines::Fermi2D::Regs::Surface& src_config,
                           const Tegra::Engines::Fermi2D::Regs::Surface& dst_config);
 
+    void NotifyFramebufferChange(Surface& triggering_surface);
+
 private:
     void LoadSurface(const Surface& surface);
     Surface GetSurface(const SurfaceParams& params, bool preserve_contents = true);
