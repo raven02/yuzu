@@ -25,9 +25,21 @@ public:
     GPUVAddr MapBufferEx(VAddr cpu_addr, u64 size);
     GPUVAddr MapBufferEx(VAddr cpu_addr, GPUVAddr gpu_addr, u64 size);
     GPUVAddr UnmapBuffer(GPUVAddr gpu_addr, u64 size);
-    GPUVAddr GetRegionEnd(GPUVAddr region_start) const;
     std::optional<VAddr> GpuToCpuAddress(GPUVAddr gpu_addr);
-    std::vector<GPUVAddr> CpuToGpuAddress(VAddr cpu_addr) const;
+
+    u8 Read8(GPUVAddr addr);
+    u16 Read16(GPUVAddr addr);
+    u32 Read32(GPUVAddr addr);
+    u64 Read64(GPUVAddr addr);
+
+    void Write8(GPUVAddr addr, u8 data);
+    void Write16(GPUVAddr addr, u16 data);
+    void Write32(GPUVAddr addr, u32 data);
+    void Write64(GPUVAddr addr, u64 data);
+
+    void ReadBlock(GPUVAddr src_addr, void* dest_buffer, std::size_t size);
+    void WriteBlock(GPUVAddr dest_addr, const void* src_buffer, std::size_t size);
+    void CopyBlock(GPUVAddr dest_addr, GPUVAddr src_addr, std::size_t size);
 
     static constexpr u64 PAGE_BITS = 16;
     static constexpr u64 PAGE_SIZE = 1 << PAGE_BITS;

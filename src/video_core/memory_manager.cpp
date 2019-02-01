@@ -5,6 +5,7 @@
 #include "common/alignment.h"
 #include "common/assert.h"
 #include "common/logging/log.h"
+#include "core/memory.h"
 #include "video_core/memory_manager.h"
 
 namespace Tegra {
@@ -118,16 +119,6 @@ GPUVAddr MemoryManager::UnmapBuffer(GPUVAddr gpu_addr, u64 size) {
     return gpu_addr;
 }
 
-GPUVAddr MemoryManager::GetRegionEnd(GPUVAddr region_start) const {
-    for (const auto& region : mapped_regions) {
-        const GPUVAddr region_end{region.gpu_addr + region.size};
-        if (region_start >= region.gpu_addr && region_start < region_end) {
-            return region_end;
-        }
-    }
-    return {};
-}
-
 std::optional<GPUVAddr> MemoryManager::FindFreeBlock(GPUVAddr region_start, u64 size, u64 align,
                                                      PageStatus status) {
     GPUVAddr gpu_addr{region_start};
@@ -161,17 +152,6 @@ std::optional<VAddr> MemoryManager::GpuToCpuAddress(GPUVAddr gpu_addr) {
     return base_addr + (gpu_addr & PAGE_MASK);
 }
 
-std::vector<GPUVAddr> MemoryManager::CpuToGpuAddress(VAddr cpu_addr) const {
-    std::vector<GPUVAddr> results;
-    for (const auto& region : mapped_regions) {
-        if (cpu_addr >= region.cpu_addr && cpu_addr < (region.cpu_addr + region.size)) {
-            const u64 offset{cpu_addr - region.cpu_addr};
-            results.push_back(region.gpu_addr + offset);
-        }
-    }
-    return results;
-}
-
 VAddr& MemoryManager::PageSlot(GPUVAddr gpu_addr) {
     auto& block{page_table[(gpu_addr >> (PAGE_BITS + PAGE_TABLE_BITS)) & PAGE_TABLE_MASK]};
     if (!block) {
@@ -179,6 +159,112 @@ VAddr& MemoryManager::PageSlot(GPUVAddr gpu_addr) {
         block->fill(static_cast<VAddr>(PageStatus::Unmapped));
     }
     return (*block)[(gpu_addr >> PAGE_BITS) & PAGE_BLOCK_MASK];
+}
+
+u8 MemoryManager::Read8(GPUVAddr addr) {
+    return Memory::Read8(*GpuToCpuAddress(addr));
+}
+
+u16 MemoryManager::Read16(GPUVAddr addr) {
+    return Memory::Read16(*GpuToCpuAddress(addr));
+}
+
+u32 MemoryManager::Read32(GPUVAddr addr) {
+    return Memory::Read32(*GpuToCpuAddress(addr));
+}
+
+u64 MemoryManager::Read64(GPUVAddr addr) {
+    return Memory::Read64(*GpuToCpuAddress(addr));
+}
+
+void MemoryManager::Write8(GPUVAddr addr, u8 data) {
+    Memory::Write8(*GpuToCpuAddress(addr), data);
+}
+
+void MemoryManager::Write16(GPUVAddr addr, u16 data) {
+    Memory::Write16(*GpuToCpuAddress(addr), data);
+}
+
+void MemoryManager::Write32(GPUVAddr addr, u32 data) {
+    Memory::Write32(*GpuToCpuAddress(addr), data);
+}
+
+void MemoryManager::Write64(GPUVAddr addr, u64 data) {
+    Memory::Write64(*GpuToCpuAddress(addr), data);
+}
+
+void MemoryManager::ReadBlock(GPUVAddr src_addr, void* dest_buffer, std::size_t size) {
+    std::size_t remaining_size = size;
+    std::size_t page_index = src_addr >> PAGE_BITS;
+    std::size_t page_offset = src_addr & PAGE_MASK;
+
+    while (remaining_size > 0) {
+        const std::size_t copy_amount =
+            std::min(static_cast<std::size_t>(PAGE_SIZE) - page_offset, remaining_size);
+        const GPUVAddr current_addr =
+            static_cast<GPUVAddr>((page_index << PAGE_BITS) + page_offset);
+        const VAddr current_vaddr{*GpuToCpuAddress(current_addr)};
+
+        if (!current_vaddr) {
+            LOG_CRITICAL(HW_GPU, "gpu addr 0x{:016X} is not mapped!", current_addr);
+            break;
+        }
+
+        const u8* src_ptr = Memory::GetPointer(current_vaddr);
+
+        std::memcpy(dest_buffer, src_ptr, copy_amount);
+
+        page_index++;
+        page_offset = 0;
+        dest_buffer = static_cast<u8*>(dest_buffer) + copy_amount;
+        remaining_size -= copy_amount;
+    }
+}
+
+void MemoryManager::WriteBlock(GPUVAddr dest_addr, const void* src_buffer, std::size_t size) {
+    std::size_t remaining_size = size;
+    std::size_t page_index = dest_addr >> PAGE_BITS;
+    std::size_t page_offset = dest_addr & PAGE_MASK;
+
+    while (remaining_size > 0) {
+        const std::size_t copy_amount =
+            std::min(static_cast<std::size_t>(PAGE_SIZE) - page_offset, remaining_size);
+        const GPUVAddr current_addr =
+            static_cast<GPUVAddr>((page_index << PAGE_BITS) + page_offset);
+        const VAddr current_vaddr{*GpuToCpuAddress(current_addr)};
+
+        u8* dest_ptr = Memory::GetPointer(current_vaddr);
+        std::memcpy(dest_ptr, src_buffer, copy_amount);
+
+        page_index++;
+        page_offset = 0;
+        src_buffer = static_cast<const u8*>(src_buffer) + copy_amount;
+        remaining_size -= copy_amount;
+    }
+}
+
+void MemoryManager::CopyBlock(GPUVAddr dest_addr, GPUVAddr src_addr, std::size_t size) {
+    std::size_t remaining_size = size;
+    std::size_t page_index = src_addr >> PAGE_BITS;
+    std::size_t page_offset = src_addr & PAGE_MASK;
+
+    while (remaining_size > 0) {
+        const std::size_t copy_amount =
+            std::min(static_cast<std::size_t>(PAGE_SIZE) - page_offset, remaining_size);
+        const GPUVAddr current_addr =
+            static_cast<GPUVAddr>((page_index << PAGE_BITS) + page_offset);
+        const VAddr src_vaddr{*GpuToCpuAddress(current_addr)};
+
+        u8* src_ptr = Memory::GetPointer(src_vaddr);
+
+        WriteBlock(dest_addr, src_ptr, copy_amount);
+
+        page_index++;
+        page_offset = 0;
+        dest_addr += static_cast<GPUVAddr>(copy_amount);
+        src_addr += static_cast<GPUVAddr>(copy_amount);
+        remaining_size -= copy_amount;
+    }
 }
 
 } // namespace Tegra
