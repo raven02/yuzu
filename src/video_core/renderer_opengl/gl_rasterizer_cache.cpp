@@ -88,6 +88,8 @@ std::size_t SurfaceParams::InnerMipmapMemorySize(u32 mip_level, bool force_gl, b
                                          m_height, m_depth, m_block_height, m_block_depth);
 }
 
+#pragma optimize("", off)
+
 std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only,
                                            bool uncompressed) const {
     std::size_t block_size_bytes = Tegra::Texture::GetGOBSize() * block_height * block_depth;
@@ -126,6 +128,9 @@ std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only,
 
     params.width = Common::AlignUp(config.tic.Width(), GetCompressionFactor(params.pixel_format));
     params.height = Common::AlignUp(config.tic.Height(), GetCompressionFactor(params.pixel_format));
+    if (!params.is_tiled) {
+        params.pitch = config.tic.Pitch();
+    }
     params.unaligned_height = config.tic.Height();
     params.target = SurfaceTargetFromTextureType(config.tic.texture_type);
     params.identity = SurfaceClass::Uploaded;
@@ -192,7 +197,13 @@ std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only,
                              config.format == Tegra::RenderTargetFormat::RGBA8_SRGB;
     params.component_type = ComponentTypeFromRenderTarget(config.format);
     params.type = GetFormatType(params.pixel_format);
-    params.width = config.width;
+    if (params.is_tiled) {
+        params.width = config.width;
+    } else {
+        params.pitch = config.width;
+        u32 bpp = params.GetFormatBpp() / 8;
+        params.width = params.pitch / bpp;
+    }
     params.height = config.height;
     params.unaligned_height = config.height;
     params.target = SurfaceTarget::Texture2D;
@@ -580,18 +591,6 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
     ApplyTextureDefaults(SurfaceTargetToGL(params.target), params.max_mip_level);
 
     OpenGL::LabelGLObject(GL_TEXTURE, texture.handle, params.addr, params.IdentityString());
-
-    // Clamp size to mapped GPU memory region
-    // TODO(bunnei): Super Mario Odyssey maps a 0x40000 byte region and then uses it for a 0x80000
-    // R32F render buffer. We do not yet know if this is a game bug or something else, but this
-    // check is necessary to prevent flushing from overwriting unmapped memory.
-
-    auto& memory_manager{Core::System::GetInstance().GPU().MemoryManager()};
-    const u64 max_size{memory_manager.GetRegionEnd(params.gpu_addr) - params.gpu_addr};
-    if (cached_size_in_bytes > max_size) {
-        LOG_ERROR(HW_GPU, "Surface size {} exceeds region size {}", params.size_in_bytes, max_size);
-        cached_size_in_bytes = max_size;
-    }
 }
 
 static void ConvertS8Z24ToZ24S8(std::vector<u8>& data, u32 width, u32 height, bool reverse) {
@@ -703,9 +702,20 @@ void CachedSurface::LoadGLBuffer() {
         for (u32 i = 0; i < params.max_mip_level; i++)
             SwizzleFunc(MortonSwizzleMode::MortonToLinear, params, gl_buffer[i], i);
     } else {
-        const auto texture_src_data{Memory::GetPointer(params.addr)};
-        const auto texture_src_data_end{texture_src_data + params.size_in_bytes_gl};
-        gl_buffer[0].assign(texture_src_data, texture_src_data_end);
+        auto& memory_manager{Core::System::GetInstance().GPU().MemoryManager()};
+        u32 bpp = params.GetFormatBpp() / 8;
+        u32 copy_size = params.width * bpp;
+        if (params.pitch == copy_size) {
+            memory_manager.ReadBlock(params.gpu_addr, gl_buffer[0].data(), params.size_in_bytes_gl);
+        } else {
+            Tegra::GPUVAddr start = params.gpu_addr;
+            u8* write_to = gl_buffer[0].data();
+            for (u32 h = params.height; h > 0; h--) {
+                memory_manager.ReadBlock(start, write_to, copy_size);
+                start += params.pitch;
+                write_to += copy_size;
+            }
+        }
     }
     for (u32 i = 0; i < params.max_mip_level; i++) {
         ConvertFormatAsNeeded_LoadGLBuffer(gl_buffer[i], params.pixel_format, params.MipWidth(i),
@@ -743,7 +753,21 @@ void CachedSurface::FlushGLBuffer() {
 
         SwizzleFunc(MortonSwizzleMode::LinearToMorton, params, gl_buffer[0], 0);
     } else {
-        std::memcpy(Memory::GetPointer(GetAddr()), gl_buffer[0].data(), GetSizeInBytes());
+        auto& memory_manager{Core::System::GetInstance().GPU().MemoryManager()};
+
+        u32 bpp = params.GetFormatBpp() / 8;
+        u32 copy_size = params.width * bpp;
+        if (params.pitch == copy_size) {
+            memory_manager.WriteBlock(params.gpu_addr, gl_buffer[0].data(), GetSizeInBytes());
+        } else {
+            Tegra::GPUVAddr start = params.gpu_addr;
+            u8* write_to = gl_buffer[0].data();
+            for (u32 h = params.height; h > 0; h--) {
+                memory_manager.WriteBlock(start, write_to, copy_size);
+                start += params.pitch;
+                write_to += copy_size;
+            }
+        }
     }
 }
 
@@ -1051,6 +1075,7 @@ void RasterizerCacheOpenGL::NotifyFramebufferChange(Surface& triggering_surface)
     const auto& params{triggering_surface->GetSurfaceParams()};
     if (!params.is_tiled) {
         triggering_surface->Flush();
+        //Unregister(triggering_surface);
     }
 }
 

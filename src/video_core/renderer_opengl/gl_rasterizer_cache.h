@@ -140,6 +140,15 @@ struct SurfaceParams {
         return offset;
     }
 
+    u32 PitchLinearHeight() {
+        u32 min_h = std::max(unaligned_height, 8u);
+        u32 l2 = std::log2(min_h);
+        if (min_h & ~(1 << l2)) {
+            return 1 << (l2 + 1);
+        }
+        return 1 << l2;
+    }
+
     u32 MipWidth(u32 mip_level) const {
         return std::max(1U, width >> mip_level);
     }
@@ -272,6 +281,7 @@ struct SurfaceParams {
     u32 height;
     u32 depth;
     u32 unaligned_height;
+    u32 pitch;
     SurfaceTarget target;
     SurfaceClass identity;
     u32 max_mip_level;
