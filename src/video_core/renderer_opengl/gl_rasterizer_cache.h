@@ -233,6 +233,8 @@ struct SurfaceParams {
             return "2DArray";
         case SurfaceTarget::TextureCubemap:
             return "Cube";
+        case SurfaceTarget::TextureCubeArray:
+            return "CubeArray";
         default:
             LOG_CRITICAL(HW_GPU, "Unimplemented surface_target={}", static_cast<u32>(target));
             UNREACHABLE();
