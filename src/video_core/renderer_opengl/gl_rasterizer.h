@@ -152,6 +152,8 @@ private:
     void SetupTextures(Tegra::Engines::Maxwell3D::Regs::ShaderStage stage, const Shader& shader,
                        GLuint program_handle, BaseBindings base_bindings);
 
+    void SyncRasterizer();
+
     /// Syncs the viewport and depth range to match the guest state
     void SyncViewport(OpenGLState& current_state);
 

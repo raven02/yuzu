@@ -568,8 +568,7 @@ std::pair<bool, bool> RasterizerOpenGL::ConfigureFramebuffers(
         depth_surface->MarkAsModified(true, res_cache);
 
         fbkey.zeta = depth_surface->Texture().handle;
-        fbkey.stencil_enable = regs.stencil_enable &&
-                               depth_surface->GetSurfaceParams().type == SurfaceType::DepthStencil;
+        fbkey.stencil_enable = depth_surface->GetSurfaceParams().type == SurfaceType::DepthStencil;
     }
 
     SetupCachedFramebuffer(fbkey, current_state);
@@ -579,15 +578,15 @@ std::pair<bool, bool> RasterizerOpenGL::ConfigureFramebuffers(
 }
 
 void RasterizerOpenGL::Clear() {
-    const auto prev_state{state};
-    SCOPE_EXIT({ prev_state.Apply(); });
+    SyncRasterizer();
+    state.Apply();
 
     const auto& regs = system.GPU().Maxwell3D().regs;
     bool use_color{};
     bool use_depth{};
     bool use_stencil{};
 
-    OpenGLState clear_state;
+    OpenGLState clear_state{state};
     if (regs.clear_buffers.R || regs.clear_buffers.G || regs.clear_buffers.B ||
         regs.clear_buffers.A) {
         use_color = true;
@@ -605,77 +604,36 @@ void RasterizerOpenGL::Clear() {
         // Always enable the depth write when clearing the depth buffer. The depth write mask is
         // ignored when clearing the buffer in the Switch, but OpenGL obeys it so we set it to
         // true.
-        clear_state.depth.test_enabled = true;
-        clear_state.depth.test_func = GL_ALWAYS;
+        clear_state.depth.write_mask = GL_TRUE;
     }
     if (regs.clear_buffers.S) {
         ASSERT_MSG(regs.zeta_enable != 0, "Tried to clear stencil but buffer is not enabled!");
         use_stencil = true;
-        clear_state.stencil.test_enabled = true;
-        if (regs.clear_flags.stencil) {
-            // Stencil affects the clear so fill it with the used masks
-            clear_state.stencil.front.test_func = GL_ALWAYS;
-            clear_state.stencil.front.test_mask = regs.stencil_front_func_mask;
-            clear_state.stencil.front.action_stencil_fail = GL_KEEP;
-            clear_state.stencil.front.action_depth_fail = GL_KEEP;
-            clear_state.stencil.front.action_depth_pass = GL_KEEP;
-            clear_state.stencil.front.write_mask = regs.stencil_front_mask;
-            if (regs.stencil_two_side_enable) {
-                clear_state.stencil.back.test_func = GL_ALWAYS;
-                clear_state.stencil.back.test_mask = regs.stencil_back_func_mask;
-                clear_state.stencil.back.action_stencil_fail = GL_KEEP;
-                clear_state.stencil.back.action_depth_fail = GL_KEEP;
-                clear_state.stencil.back.action_depth_pass = GL_KEEP;
-                clear_state.stencil.back.write_mask = regs.stencil_back_mask;
-            } else {
-                clear_state.stencil.back.test_func = GL_ALWAYS;
-                clear_state.stencil.back.test_mask = 0xFFFFFFFF;
-                clear_state.stencil.back.write_mask = 0xFFFFFFFF;
-                clear_state.stencil.back.action_stencil_fail = GL_KEEP;
-                clear_state.stencil.back.action_depth_fail = GL_KEEP;
-                clear_state.stencil.back.action_depth_pass = GL_KEEP;
-            }
-        }
+        // Stencil affects the clear so fill it with the used masks
+        clear_state.stencil.front.write_mask = 0xFFFFFFFF;
+        clear_state.stencil.back.write_mask = 0xFFFFFFFF;
     }
 
     if (!use_color && !use_depth && !use_stencil) {
         // No color surface nor depth/stencil surface are enabled
         return;
     }
-
-    const auto [clear_depth, clear_stencil] = ConfigureFramebuffers(
-        clear_state, use_color, use_depth || use_stencil, false, regs.clear_buffers.RT.Value());
-    if (regs.clear_flags.scissor) {
-        SyncScissorTest(clear_state);
-    }
-
-    if (regs.clear_flags.viewport) {
-        clear_state.EmulateViewportWithScissor();
-    }
-
     clear_state.Apply();
 
     if (use_color) {
         glClearBufferfv(GL_COLOR, regs.clear_buffers.RT, regs.clear_color);
     }
 
-    if (clear_depth && clear_stencil) {
-        glClearBufferfi(GL_DEPTH_STENCIL, 0, regs.clear_depth, regs.clear_stencil);
-    } else if (clear_depth) {
+    if (use_depth) {
         glClearBufferfv(GL_DEPTH, 0, &regs.clear_depth);
-    } else if (clear_stencil) {
+    }
+    if (use_stencil) {
         glClearBufferiv(GL_STENCIL, 0, &regs.clear_stencil);
     }
+    state.Apply();
 }
 
-void RasterizerOpenGL::DrawArrays() {
-    if (accelerate_draw == AccelDraw::Disabled)
-        return;
-
-    MICROPROFILE_SCOPE(OpenGL_Drawing);
-    auto& gpu = system.GPU().Maxwell3D();
-    const auto& regs = gpu.regs;
-
+void RasterizerOpenGL::SyncRasterizer() {
     ConfigureFramebuffers(state);
     SyncColorMask();
     SyncFragmentColorClampState();
@@ -692,6 +650,17 @@ void RasterizerOpenGL::DrawArrays() {
     SyncPointState();
     CheckAlphaTests();
     SyncPolygonOffset();
+}
+
+void RasterizerOpenGL::DrawArrays() {
+    if (accelerate_draw == AccelDraw::Disabled)
+        return;
+
+    MICROPROFILE_SCOPE(OpenGL_Drawing);
+    auto& gpu = system.GPU().Maxwell3D();
+    const auto& regs = gpu.regs;
+
+    SyncRasterizer();
     // TODO(bunnei): Sync framebuffer_scale uniform here
     // TODO(bunnei): Sync scissorbox uniform(s) here
 
