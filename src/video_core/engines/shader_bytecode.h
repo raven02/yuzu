@@ -645,11 +645,11 @@ union Instruction {
     } alu_half_imm;
 
     union {
-        BitField<29, 1, u64> first_negate;
-        BitField<20, 9, u64> first;
+        BitField<29, 1, u64> second_negate;
+        BitField<20, 9, u64> second;
 
-        BitField<56, 1, u64> second_negate;
-        BitField<30, 9, u64> second;
+        BitField<56, 1, u64> first_negate;
+        BitField<30, 9, u64> first;
 
         u32 PackImmediates() const {
             // Immediates are half floats shifted.
