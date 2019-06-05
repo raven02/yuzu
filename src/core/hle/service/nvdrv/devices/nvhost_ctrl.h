@@ -18,6 +18,20 @@ public:
 
     u32 ioctl(Ioctl command, const std::vector<u8>& input, std::vector<u8>& output) override;
 
+    u32 ioctlHLE(Kernel::HLERequestContext& ctx, Ioctl command, const std::vector<u8>& input,
+                 std::vector<u8>& output) override;
+
+    bool handlesHLE(Ioctl command) override {
+        auto ioctl_command = static_cast<IoctlCommand>(command.raw);
+        if (ioctl_command == IoctlCommand::IocCtrlEventWaitCommand) {
+            return true;
+        }
+        if (ioctl_command == IoctlCommand::IocCtrlEventWaitAsyncCommand) {
+            return true;
+        }
+        return false;
+    }
+
 private:
     enum class IoctlCommand : u32_le {
         IocSyncptReadCommand = 0xC0080014,
@@ -132,7 +146,8 @@ private:
 
     u32 NvOsGetConfigU32(const std::vector<u8>& input, std::vector<u8>& output);
 
-    u32 IocCtrlEventWait(const std::vector<u8>& input, std::vector<u8>& output, bool is_async);
+    u32 IocCtrlEventWait(Kernel::HLERequestContext& ctx, const std::vector<u8>& input,
+                         std::vector<u8>& output, bool is_async);
 
     u32 IocCtrlEventRegister(const std::vector<u8>& input, std::vector<u8>& output);
 };

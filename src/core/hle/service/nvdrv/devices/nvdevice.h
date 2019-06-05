@@ -8,6 +8,7 @@
 #include "common/bit_field.h"
 #include "common/common_types.h"
 #include "common/swap.h"
+#include "core/hle/service/service.h"
 
 namespace Service::Nvidia::Devices {
 
@@ -34,6 +35,13 @@ public:
      * @returns The result code of the ioctl.
      */
     virtual u32 ioctl(Ioctl command, const std::vector<u8>& input, std::vector<u8>& output) = 0;
+    virtual u32 ioctlHLE(Kernel::HLERequestContext& ctx, Ioctl command,
+                         const std::vector<u8>& input, std::vector<u8>& output) {
+        return 0;
+    }
+    virtual bool handlesHLE(Ioctl command) {
+        return false;
+    }
 };
 
 } // namespace Service::Nvidia::Devices

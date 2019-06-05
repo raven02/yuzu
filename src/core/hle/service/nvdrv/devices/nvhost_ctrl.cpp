@@ -7,6 +7,10 @@
 
 #include "common/assert.h"
 #include "common/logging/log.h"
+#include "core/hle/ipc_helpers.h"
+#include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/nvdrv/devices/nvhost_ctrl.h"
 
 namespace Service::Nvidia::Devices {
@@ -21,12 +25,20 @@ u32 nvhost_ctrl::ioctl(Ioctl command, const std::vector<u8>& input, std::vector<
     switch (static_cast<IoctlCommand>(command.raw)) {
     case IoctlCommand::IocGetConfigCommand:
         return NvOsGetConfigU32(input, output);
-    case IoctlCommand::IocCtrlEventWaitCommand:
-        return IocCtrlEventWait(input, output, false);
-    case IoctlCommand::IocCtrlEventWaitAsyncCommand:
-        return IocCtrlEventWait(input, output, true);
     case IoctlCommand::IocCtrlEventRegisterCommand:
         return IocCtrlEventRegister(input, output);
+    }
+    UNIMPLEMENTED_MSG("Unimplemented ioctl");
+    return 0;
+}
+
+u32 nvhost_ctrl::ioctlHLE(Kernel::HLERequestContext& ctx, Ioctl command,
+                          const std::vector<u8>& input, std::vector<u8>& output) {
+    switch (static_cast<IoctlCommand>(command.raw)) {
+    case IoctlCommand::IocCtrlEventWaitCommand:
+        return IocCtrlEventWait(ctx, input, output, false);
+    case IoctlCommand::IocCtrlEventWaitAsyncCommand:
+        return IocCtrlEventWait(ctx, input, output, true);
     }
     UNIMPLEMENTED_MSG("Unimplemented ioctl");
     return 0;
@@ -40,8 +52,13 @@ u32 nvhost_ctrl::NvOsGetConfigU32(const std::vector<u8>& input, std::vector<u8>&
     return 0x30006; // Returns error on production mode
 }
 
-u32 nvhost_ctrl::IocCtrlEventWait(const std::vector<u8>& input, std::vector<u8>& output,
-                                  bool is_async) {
+enum class NvResult : s32 {
+    Success = 0,
+    TryAgain = -11,
+};
+
+u32 nvhost_ctrl::IocCtrlEventWait(Kernel::HLERequestContext& ctx, const std::vector<u8>& input,
+                                  std::vector<u8>& output, bool is_async) {
     IocCtrlEventWaitParams params{};
     std::memcpy(&params, input.data(), sizeof(params));
     LOG_WARNING(Service_NVDRV,
@@ -51,6 +68,11 @@ u32 nvhost_ctrl::IocCtrlEventWait(const std::vector<u8>& input, std::vector<u8>&
     // TODO(Subv): Implement actual syncpt waiting.
     params.value = 0;
     std::memcpy(output.data(), &params, sizeof(params));
+    IPC::ResponseBuilder rb{ctx, 3};
+    rb.Push(RESULT_SUCCESS);
+    rb.Push(static_cast<u32>(NvResult::Success));
+
+    ctx.WriteBuffer(output);
     return 0;
 }
 

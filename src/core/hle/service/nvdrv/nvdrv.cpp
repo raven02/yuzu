@@ -59,6 +59,23 @@ u32 Module::Open(const std::string& device_name) {
     return fd;
 }
 
+bool Module::IoctlHandlesHLE(u32 fd, u32 command) {
+    auto itr = open_files.find(fd);
+    ASSERT_MSG(itr != open_files.end(), "Tried to talk to an invalid device");
+
+    auto& device = itr->second;
+    return device->handlesHLE({command});
+}
+
+u32 Module::IoctlHLE(Kernel::HLERequestContext& ctx, u32 fd, u32 command,
+                     const std::vector<u8>& input, std::vector<u8>& output) {
+    auto itr = open_files.find(fd);
+    ASSERT_MSG(itr != open_files.end(), "Tried to talk to an invalid device");
+
+    auto& device = itr->second;
+    return device->ioctlHLE(ctx, {command}, input, output);
+}
+
 u32 Module::Ioctl(u32 fd, u32 command, const std::vector<u8>& input, std::vector<u8>& output) {
     auto itr = open_files.find(fd);
     ASSERT_MSG(itr != open_files.end(), "Tried to talk to an invalid device");

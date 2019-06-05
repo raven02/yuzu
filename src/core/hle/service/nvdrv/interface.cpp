@@ -36,11 +36,15 @@ void NVDRV::Ioctl(Kernel::HLERequestContext& ctx) {
 
     std::vector<u8> output(ctx.GetWriteBufferSize());
 
-    IPC::ResponseBuilder rb{ctx, 3};
-    rb.Push(RESULT_SUCCESS);
-    rb.Push(nvdrv->Ioctl(fd, command, ctx.ReadBuffer(), output));
+    if (!nvdrv->IoctlHandlesHLE(fd, command)) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(RESULT_SUCCESS);
+        rb.Push(nvdrv->Ioctl(fd, command, ctx.ReadBuffer(), output));
 
-    ctx.WriteBuffer(output);
+        ctx.WriteBuffer(output);
+        return;
+    }
+    nvdrv->IoctlHLE(ctx, fd, command, ctx.ReadBuffer(), output);
 }
 
 void NVDRV::Close(Kernel::HLERequestContext& ctx) {
