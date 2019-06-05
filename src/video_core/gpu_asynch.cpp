@@ -5,6 +5,7 @@
 #include "video_core/gpu_asynch.h"
 #include "video_core/gpu_thread.h"
 #include "video_core/renderer_base.h"
+#include "core/hle/kernel/writable_event.h"
 
 namespace VideoCommon {
 
@@ -36,6 +37,10 @@ void GPUAsynch::InvalidateRegion(CacheAddr addr, u64 size) {
 
 void GPUAsynch::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {
     gpu_thread.FlushAndInvalidateRegion(addr, size);
+}
+
+void GPUAsynch::SyncRequest(Kernel::SharedPtr<Kernel::WritableEvent>& event) {
+    gpu_thread.SyncRequest(event);
 }
 
 } // namespace VideoCommon

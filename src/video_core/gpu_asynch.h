@@ -26,6 +26,10 @@ public:
     void FlushRegion(CacheAddr addr, u64 size) override;
     void InvalidateRegion(CacheAddr addr, u64 size) override;
     void FlushAndInvalidateRegion(CacheAddr addr, u64 size) override;
+    void SyncRequest(Kernel::SharedPtr<Kernel::WritableEvent>& event) override;
+    bool IsIddle() override {
+        return gpu_thread.IsIddle();
+    }
 
 private:
     GPUThread::ThreadManager gpu_thread;

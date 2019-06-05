@@ -9,6 +9,7 @@
 #include "common/common_types.h"
 #include "core/hle/service/nvflinger/buffer_queue.h"
 #include "video_core/dma_pusher.h"
+#include "core/hle/kernel/object.h"
 
 using CacheAddr = std::uintptr_t;
 inline CacheAddr ToCacheAddr(const void* host_ptr) {
@@ -17,6 +18,10 @@ inline CacheAddr ToCacheAddr(const void* host_ptr) {
 
 namespace Core {
 class System;
+}
+
+namespace Kernel {
+class WritableEvent;
 }
 
 namespace VideoCore {
@@ -227,6 +232,10 @@ public:
 
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     virtual void FlushAndInvalidateRegion(CacheAddr addr, u64 size) = 0;
+
+    virtual void SyncRequest(Kernel::SharedPtr<Kernel::WritableEvent>& event) = 0;
+
+    virtual bool IsIddle() = 0;
 
 private:
     void ProcessBindMethod(const MethodCall& method_call);

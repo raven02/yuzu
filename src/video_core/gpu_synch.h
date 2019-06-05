@@ -25,6 +25,11 @@ public:
     void FlushRegion(CacheAddr addr, u64 size) override;
     void InvalidateRegion(CacheAddr addr, u64 size) override;
     void FlushAndInvalidateRegion(CacheAddr addr, u64 size) override;
+    // A sync request shouldn't be submitted in sync gpu. It's a NOP
+    void SyncRequest(Kernel::SharedPtr<Kernel::WritableEvent>& event) override {}
+    bool IsIddle() override {
+        return true;
+    }
 };
 
 } // namespace VideoCommon

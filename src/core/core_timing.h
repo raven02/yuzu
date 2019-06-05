@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 #include "common/common_types.h"
+#include "common/spin_lock.h"
 #include "common/threadsafe_queue.h"
 
 namespace Core::Timing {
@@ -151,6 +152,7 @@ private:
     Common::MPSCQueue<std::pair<const EventType*, u64>> unschedule_queue;
 
     EventType* ev_lost = nullptr;
+    Common::SpinLock guard{};
 };
 
 } // namespace Core::Timing

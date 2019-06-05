@@ -95,7 +95,9 @@ void CoreTiming::ScheduleEvent(s64 cycles_into_future, const EventType* event_ty
 
 void CoreTiming::ScheduleEventThreadsafe(s64 cycles_into_future, const EventType* event_type,
                                          u64 userdata) {
-    ts_queue.Push(Event{global_timer + cycles_into_future, 0, userdata, event_type});
+    guard.lock();
+    ScheduleEvent(cycles_into_future, event_type, userdata);
+    guard.unlock();
 }
 
 void CoreTiming::UnscheduleEvent(const EventType* event_type, u64 userdata) {
@@ -171,6 +173,7 @@ void CoreTiming::MoveEvents() {
 }
 
 void CoreTiming::Advance() {
+    guard.lock();
     MoveEvents();
     for (std::pair<const EventType*, u64> ev; unschedule_queue.Pop(ev);) {
         UnscheduleEvent(ev.first, ev.second);
@@ -198,6 +201,7 @@ void CoreTiming::Advance() {
     }
 
     downcount = slice_length;
+    guard.unlock();
 }
 
 void CoreTiming::Idle() {

@@ -13,11 +13,16 @@
 
 #include "common/threadsafe_queue.h"
 #include "video_core/gpu.h"
+#include "core/hle/kernel/object.h"
 
 namespace Tegra {
 struct FramebufferConfig;
 class DmaPusher;
 } // namespace Tegra
+
+namespace Kernel {
+class WritableEvent;
+}
 
 namespace Core {
 class System;
@@ -154,6 +159,14 @@ public:
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(CacheAddr addr, u64 size);
 
+    void SyncRequest(Kernel::SharedPtr<Kernel::WritableEvent>& event);
+
+    void TrySync();
+
+    bool IsIddle() {
+        return state.queue.Empty();
+    }
+
 private:
     /// Pushes a command to be executed by the GPU thread
     u64 PushCommand(CommandData&& command_data);
@@ -164,6 +177,8 @@ private:
     Core::Timing::EventType* synchronization_event{};
     std::thread thread;
     std::thread::id thread_id;
+    Core::Timing::EventType* cpu_sync_event{};
+    Kernel::SharedPtr<Kernel::WritableEvent> cpu_sync_request_handler{};
 };
 
 } // namespace VideoCommon::GPUThread

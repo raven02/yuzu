@@ -110,6 +110,8 @@ add_library(common STATIC
     scm_rev.cpp
     scm_rev.h
     scope_exit.h
+    spin_lock.h
+    spin_lock.cpp
     string_util.cpp
     string_util.h
     swap.h

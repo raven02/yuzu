@@ -7,11 +7,15 @@
 
 #include "common/assert.h"
 #include "common/logging/log.h"
+#include "core/core.h"
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/object.h"
+#include "core/hle/kernel/thread.h"
 #include "core/hle/kernel/readable_event.h"
 #include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/nvdrv/devices/nvhost_ctrl.h"
+#include "video_core/gpu.h"
 
 namespace Service::Nvidia::Devices {
 
@@ -61,19 +65,49 @@ u32 nvhost_ctrl::IocCtrlEventWait(Kernel::HLERequestContext& ctx, const std::vec
                                   std::vector<u8>& output, bool is_async) {
     IocCtrlEventWaitParams params{};
     std::memcpy(&params, input.data(), sizeof(params));
-    LOG_WARNING(Service_NVDRV,
+    LOG_CRITICAL(Service_NVDRV,
                 "(STUBBED) called, syncpt_id={}, threshold={}, timeout={}, is_async={}",
                 params.syncpt_id, params.threshold, params.timeout, is_async);
 
     // TODO(Subv): Implement actual syncpt waiting.
     params.value = 0;
     std::memcpy(output.data(), &params, sizeof(params));
-    IPC::ResponseBuilder rb{ctx, 3};
-    rb.Push(RESULT_SUCCESS);
-    rb.Push(static_cast<u32>(NvResult::Success));
-
+    auto& gpu = Core::System::GetInstance().GPU();
     ctx.WriteBuffer(output);
-    return 0;
+    if (!is_async) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(RESULT_SUCCESS);
+
+        if (gpu.IsIddle()) {
+            rb.Push(static_cast<u32>(NvResult::Success));
+        } else {
+            rb.Push(static_cast<u32>(NvResult::TryAgain));
+        }
+        return 0;
+    }
+
+    // async is a bit more complex.
+    if (gpu.IsIddle() || params.timeout == 0) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push(RESULT_SUCCESS);
+        rb.Push(static_cast<u32>(NvResult::Success));
+
+        return 0;
+    }
+
+    ctrl_event_wait = ctx.SleepClientThread(
+        "IHOSNVDRV::CtrlEventWait", -1,
+        [](Kernel::SharedPtr<Kernel::Thread> thread, Kernel::HLERequestContext& ctx,
+            Kernel::ThreadWakeupReason reason) {
+            IPC::ResponseBuilder rb{ctx, 3};
+            rb.Push(RESULT_SUCCESS);
+            auto& gpu = Core::System::GetInstance().GPU();
+
+            rb.Push(static_cast<u32>(NvResult::Success));
+            return;
+        },
+        nullptr);
+        gpu.SyncRequest(ctrl_event_wait);
 }
 
 u32 nvhost_ctrl::IocCtrlEventRegister(const std::vector<u8>& input, std::vector<u8>& output) {

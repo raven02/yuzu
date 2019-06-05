@@ -8,6 +8,7 @@
 #include "core/core_timing.h"
 #include "core/core_timing_util.h"
 #include "core/frontend/scope_acquire_window_context.h"
+#include "core/hle/kernel/writable_event.h"
 #include "video_core/dma_pusher.h"
 #include "video_core/gpu.h"
 #include "video_core/gpu_thread.h"
@@ -17,7 +18,7 @@ namespace VideoCommon::GPUThread {
 
 /// Runs the GPU thread
 static void RunThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_pusher,
-                      SynchState& state) {
+                      SynchState& state, ThreadManager& thread_manager) {
     MicroProfileOnThreadCreate("GpuThread");
 
     // Wait for first GPU command before acquiring the window context
@@ -52,6 +53,7 @@ static void RunThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_p
             state.signaled_fence = next.fence;
             state.TrySynchronize();
         }
+        thread_manager.TrySync();
     }
 }
 
@@ -68,15 +70,32 @@ ThreadManager::~ThreadManager() {
 }
 
 void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_pusher) {
-    thread = std::thread{RunThread, std::ref(renderer), std::ref(dma_pusher), std::ref(state)};
+    thread = std::thread{RunThread, std::ref(renderer), std::ref(dma_pusher), std::ref(state),
+                         std::ref(*this)};
     synchronization_event = system.CoreTiming().RegisterEvent(
         "GPUThreadSynch", [this](u64 fence, s64) { state.WaitForSynchronization(fence); });
+    cpu_sync_event = system.CoreTiming().RegisterEvent("GPUSynchRequest", [this](u64 user_data, s64) {
+        if (cpu_sync_request_handler) {
+            cpu_sync_request_handler->Signal();
+            cpu_sync_request_handler = nullptr;
+        }
+    });
 }
 
 void ThreadManager::SubmitList(Tegra::CommandList&& entries) {
     const u64 fence{PushCommand(SubmitListCommand(std::move(entries)))};
     const s64 synchronization_ticks{Core::Timing::usToCycles(9000)};
-    system.CoreTiming().ScheduleEvent(synchronization_ticks, synchronization_event, fence);
+    system.CoreTiming().ScheduleEventThreadsafe(synchronization_ticks, synchronization_event, fence);
+}
+
+void ThreadManager::TrySync() {
+    if (cpu_sync_request_handler) {
+        system.CoreTiming().ScheduleEventThreadsafe(10, cpu_sync_event, 0);
+    }
+}
+
+void ThreadManager::SyncRequest(Kernel::SharedPtr<Kernel::WritableEvent>& event) {
+    cpu_sync_request_handler = event;
 }
 
 void ThreadManager::SwapBuffers(

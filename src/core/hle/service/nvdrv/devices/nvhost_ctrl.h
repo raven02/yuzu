@@ -8,6 +8,9 @@
 #include <vector>
 #include "common/common_types.h"
 #include "core/hle/service/nvdrv/devices/nvdevice.h"
+#include "core/hle/kernel/object.h"
+#include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/writable_event.h"
 
 namespace Service::Nvidia::Devices {
 
@@ -150,6 +153,8 @@ private:
                          std::vector<u8>& output, bool is_async);
 
     u32 IocCtrlEventRegister(const std::vector<u8>& input, std::vector<u8>& output);
+
+    Kernel::SharedPtr<Kernel::WritableEvent> ctrl_event_wait;
 };
 
 } // namespace Service::Nvidia::Devices
