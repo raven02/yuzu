@@ -544,7 +544,7 @@ void OpenGLState::Apply() const {
     ApplyLogicOp();
     ApplyTextures();
     ApplySamplers();
-    ApplyPolygonOffset();
+    //ApplyPolygonOffset();
     ApplyAlphaTest();
 }
 
