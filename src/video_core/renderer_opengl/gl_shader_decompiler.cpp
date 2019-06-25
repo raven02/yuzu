@@ -1457,6 +1457,14 @@ private:
         return {};
     }
 
+    std::string BranchIndirect(Operation operation) {
+        const std::string op_a = VisitOperand(operation, 0, Type::Uint);
+
+        code.AddLine("jmp_to = {};", op_a);
+        code.AddLine("break;");
+        return {};
+    }
+
     std::string PushFlowStack(Operation operation) {
         const auto stack = std::get<MetaStackClass>(operation.GetMeta());
         const auto target = std::get_if<ImmediateNode>(&*operation[0]);
@@ -1689,6 +1697,7 @@ private:
         &GLSLDecompiler::TexelFetch,
 
         &GLSLDecompiler::Branch,
+        &GLSLDecompiler::BranchIndirect,
         &GLSLDecompiler::PushFlowStack,
         &GLSLDecompiler::PopFlowStack,
         &GLSLDecompiler::Exit,

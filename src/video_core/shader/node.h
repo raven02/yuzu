@@ -147,6 +147,7 @@ enum class OperationCode {
     TexelFetch,             /// (MetaTexture, int[N], int) -> float4
 
     Branch,        /// (uint branch_target) -> void
+    BranchIndirect,/// (uint branch_target) -> void
     PushFlowStack, /// (uint branch_target) -> void
     PopFlowStack,  /// () -> void
     Exit,          /// () -> void
