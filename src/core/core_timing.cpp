@@ -61,7 +61,7 @@ void CoreTiming::Shutdown() {
 }
 
 EventType* CoreTiming::RegisterEvent(const std::string& name, TimedCallback callback) {
-    std::lock_guard guard{inner_mutex};
+    //std::lock_guard guard{inner_mutex};
     // check for existing type with same name.
     // we want event type names to remain unique so that we can use them for serialization.
     ASSERT_MSG(event_types.find(name) == event_types.end(),
@@ -82,7 +82,7 @@ void CoreTiming::UnregisterAllEvents() {
 
 void CoreTiming::ScheduleEvent(s64 cycles_into_future, const EventType* event_type, u64 userdata) {
     ASSERT(event_type != nullptr);
-    std::lock_guard guard{inner_mutex};
+    //std::lock_guard guard{inner_mutex};
     const s64 timeout = GetTicks() + cycles_into_future;
 
     // If this event needs to be scheduled before the next advance(), force one early
@@ -95,7 +95,7 @@ void CoreTiming::ScheduleEvent(s64 cycles_into_future, const EventType* event_ty
 }
 
 void CoreTiming::UnscheduleEvent(const EventType* event_type, u64 userdata) {
-    std::lock_guard guard{inner_mutex};
+    //std::lock_guard guard{inner_mutex};
     const auto itr = std::remove_if(event_queue.begin(), event_queue.end(), [&](const Event& e) {
         return e.type == event_type && e.userdata == userdata;
     });
@@ -128,7 +128,7 @@ void CoreTiming::ClearPendingEvents() {
 }
 
 void CoreTiming::RemoveEvent(const EventType* event_type) {
-    std::lock_guard guard{inner_mutex};
+    //std::lock_guard guard{inner_mutex};
     const auto itr = std::remove_if(event_queue.begin(), event_queue.end(),
                                     [&](const Event& e) { return e.type == event_type; });
 
@@ -152,7 +152,7 @@ void CoreTiming::ForceExceptionCheck(s64 cycles) {
 }
 
 void CoreTiming::Advance() {
-    std::unique_lock<std::mutex> guard(inner_mutex);
+    //std::unique_lock<std::mutex> guard(inner_mutex);
 
     const int cycles_executed = slice_length - downcount;
     global_timer += cycles_executed;
@@ -164,9 +164,9 @@ void CoreTiming::Advance() {
         Event evt = std::move(event_queue.front());
         std::pop_heap(event_queue.begin(), event_queue.end(), std::greater<>());
         event_queue.pop_back();
-        inner_mutex.unlock();
+        //inner_mutex.unlock();
         evt.type->callback(evt.userdata, global_timer - evt.time);
-        inner_mutex.lock();
+        //inner_mutex.lock();
     }
 
     is_global_timer_sane = false;
