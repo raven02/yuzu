@@ -507,14 +507,13 @@ void RasterizerVulkan::OnCPUWrite(CacheAddr addr, u64 size) {
         return;
     }
     texture_cache.OnCPUWrite(addr, size);
-    shader_cache.InvalidateRegion(addr, size);
-    buffer_cache.InvalidateRegion(addr, size);
+    pipeline_cache.InvalidateRegion(addr, size);
+    buffer_cache.OnCPUWrite(addr, size);
 }
 
 void RasterizerVulkan::SyncGuestHost() {
-    MICROPROFILE_SCOPE(OpenGL_CacheManagement);
     texture_cache.SyncGuestHost();
-    // buffer_cache.SyncGuestHost();
+    buffer_cache.SyncGuestHost();
 }
 
 void RasterizerVulkan::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {

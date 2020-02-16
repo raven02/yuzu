@@ -75,7 +75,7 @@ void ThreadManager::SwapBuffers(const Tegra::FramebufferConfig* framebuffer) {
 }
 
 void ThreadManager::FlushRegion(CacheAddr addr, u64 size) {
-    PushCommand(FlushRegionCommand(addr, size));
+    system.Renderer().Rasterizer().FlushRegion(addr, size);
 }
 
 void ThreadManager::InvalidateRegion(CacheAddr addr, u64 size) {
@@ -84,7 +84,7 @@ void ThreadManager::InvalidateRegion(CacheAddr addr, u64 size) {
 
 void ThreadManager::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {
     // Skip flush on asynch mode, as FlushAndInvalidateRegion is not used for anything too important
-    OnCPUWrite(addr, size);
+    system.Renderer().Rasterizer().OnCPUWrite(addr, size);
 }
 
 void ThreadManager::WaitIdle() const {
