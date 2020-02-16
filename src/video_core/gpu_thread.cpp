@@ -75,7 +75,7 @@ void ThreadManager::SwapBuffers(const Tegra::FramebufferConfig* framebuffer) {
 }
 
 void ThreadManager::FlushRegion(CacheAddr addr, u64 size) {
-    system.Renderer().Rasterizer().FlushRegion(addr, size);
+    PushCommand(FlushRegionCommand(addr, size));
 }
 
 void ThreadManager::InvalidateRegion(CacheAddr addr, u64 size) {

@@ -153,6 +153,7 @@ public:
 
     void FlushCommands();
     void SyncGuestHost();
+    void OnCommandListEnd();
 
     /// Returns a reference to the Maxwell3D GPU engine.
     Engines::Maxwell3D& Maxwell3D();
