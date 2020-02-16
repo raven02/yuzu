@@ -40,7 +40,7 @@ static void RunThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_p
         } else if (const auto data = std::get_if<FlushRegionCommand>(&next.data)) {
             renderer.Rasterizer().FlushRegion(data->addr, data->size);
         } else if (const auto data = std::get_if<InvalidateRegionCommand>(&next.data)) {
-            renderer.Rasterizer().InvalidateRegion(data->addr, data->size);
+            renderer.Rasterizer().OnCPUWrite(data->addr, data->size);
         } else if (std::holds_alternative<EndProcessingCommand>(next.data)) {
             return;
         } else {
@@ -79,12 +79,12 @@ void ThreadManager::FlushRegion(CacheAddr addr, u64 size) {
 }
 
 void ThreadManager::InvalidateRegion(CacheAddr addr, u64 size) {
-    system.Renderer().Rasterizer().InvalidateRegion(addr, size);
+    system.Renderer().Rasterizer().OnCPUWrite(addr, size);
 }
 
 void ThreadManager::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {
     // Skip flush on asynch mode, as FlushAndInvalidateRegion is not used for anything too important
-    InvalidateRegion(addr, size);
+    OnCPUWrite(addr, size);
 }
 
 void ThreadManager::WaitIdle() const {

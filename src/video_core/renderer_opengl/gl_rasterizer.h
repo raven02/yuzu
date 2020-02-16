@@ -67,6 +67,8 @@ public:
     void FlushAll() override;
     void FlushRegion(CacheAddr addr, u64 size) override;
     void InvalidateRegion(CacheAddr addr, u64 size) override;
+    void OnCPUWrite(CacheAddr addr, u64 size) override;
+    void SyncGuestHost() override;
     void FlushAndInvalidateRegion(CacheAddr addr, u64 size) override;
     void FlushCommands() override;
     void TickFrame() override;
