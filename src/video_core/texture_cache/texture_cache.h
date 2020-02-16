@@ -236,8 +236,14 @@ public:
         auto surface_view =
             GetSurface(gpu_addr, cache_addr, SurfaceParams::CreateForFramebuffer(system, index),
                        preserve_contents, true);
-        if (render_targets[index].target)
-            render_targets[index].target->MarkAsRenderTarget(false, NO_RT);
+        if (render_targets[index].target) {
+            auto& surface = render_targets[index].target;
+            surface->MarkAsRenderTarget(false, NO_RT);
+            const auto& cr_params = surface->GetSurfaceParams();
+            if (!cr_params.is_tiled) {
+                FlushSurface(surface);
+            }
+        }
         render_targets[index].target = surface_view.first;
         render_targets[index].view = surface_view.second;
         if (render_targets[index].target)
