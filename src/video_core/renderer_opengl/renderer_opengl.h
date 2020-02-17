@@ -4,7 +4,10 @@
 
 #pragma once
 
+#include <mutex>
+#include <thread>
 #include <vector>
+
 #include <glad/glad.h>
 #include "common/common_types.h"
 #include "common/math_util.h"
@@ -58,6 +61,10 @@ public:
     /// Shutdown the renderer
     void ShutDown() override;
 
+    virtual void GetContext() override;
+
+    virtual void ReleaseContext() override;
+
 private:
     /// Initializes the OpenGL state and creates persistent objects.
     void InitOpenGLObjects();
@@ -107,6 +114,9 @@ private:
     /// Used for transforming the framebuffer orientation
     Tegra::FramebufferConfig::TransformFlags framebuffer_transform_flags;
     Common::Rectangle<int> framebuffer_crop_rect;
+
+    std::recursive_mutex inner_mutex;
+    std::thread::id owner{};
 };
 
 } // namespace OpenGL

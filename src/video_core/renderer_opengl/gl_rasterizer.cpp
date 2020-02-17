@@ -720,6 +720,10 @@ void RasterizerOpenGL::FlushRegion(CacheAddr addr, u64 size) {
     buffer_cache.FlushRegion(addr, size);
 }
 
+bool RasterizerOpenGL::MustFlushRegion(CacheAddr addr, u64 size) {
+    return texture_cache.MustFlushRegion(addr, size);
+}
+
 void RasterizerOpenGL::InvalidateRegion(CacheAddr addr, u64 size) {
     MICROPROFILE_SCOPE(OpenGL_CacheManagement);
     if (!addr || !size) {

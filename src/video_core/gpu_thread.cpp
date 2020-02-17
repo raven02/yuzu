@@ -27,11 +27,12 @@ static void RunThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_p
         return;
     }
 
-    Core::Frontend::ScopeAcquireWindowContext acquire_context{renderer.GetRenderWindow()};
+    //Core::Frontend::ScopeAcquireWindowContext acquire_context{renderer.GetRenderWindow()};
 
     CommandDataContainer next;
     while (state.is_running) {
         next = state.queue.PopWait();
+        renderer.GetContext();
         if (const auto submit_list = std::get_if<SubmitListCommand>(&next.data)) {
             dma_pusher.Push(std::move(submit_list->entries));
             dma_pusher.DispatchCalls();
@@ -42,11 +43,13 @@ static void RunThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_p
         } else if (const auto data = std::get_if<InvalidateRegionCommand>(&next.data)) {
             renderer.Rasterizer().InvalidateRegion(data->addr, data->size);
         } else if (std::holds_alternative<EndProcessingCommand>(next.data)) {
+            renderer.ReleaseContext();
             return;
         } else {
             UNREACHABLE();
         }
         state.signaled_fence.store(next.fence);
+        renderer.ReleaseContext();
     }
 }
 
@@ -75,7 +78,13 @@ void ThreadManager::SwapBuffers(const Tegra::FramebufferConfig* framebuffer) {
 }
 
 void ThreadManager::FlushRegion(CacheAddr addr, u64 size) {
-    PushCommand(FlushRegionCommand(addr, size));
+    auto& renderer = system.Renderer();
+    if (!renderer.Rasterizer().MustFlushRegion(addr, size)) {
+        return;
+    }
+    renderer.GetContext();
+    renderer.Rasterizer().FlushRegion(addr, size);
+    renderer.ReleaseContext();
 }
 
 void ThreadManager::InvalidateRegion(CacheAddr addr, u64 size) {

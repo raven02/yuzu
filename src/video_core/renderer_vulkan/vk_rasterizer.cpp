@@ -478,6 +478,10 @@ void RasterizerVulkan::FlushRegion(CacheAddr addr, u64 size) {
     buffer_cache.FlushRegion(addr, size);
 }
 
+bool RasterizerVulkan::MustFlushRegion(CacheAddr addr, u64 size) {
+    return texture_cache.MustFlushRegion(addr, size);
+}
+
 void RasterizerVulkan::InvalidateRegion(CacheAddr addr, u64 size) {
     texture_cache.InvalidateRegion(addr, size);
     pipeline_cache.InvalidateRegion(addr, size);

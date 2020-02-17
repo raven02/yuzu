@@ -44,6 +44,9 @@ public:
     /// Shutdown the renderer
     virtual void ShutDown() = 0;
 
+    virtual void GetContext() {}
+    virtual void ReleaseContext() {}
+
     // Getter/setter functions:
     // ------------------------
 

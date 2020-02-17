@@ -136,6 +136,14 @@ u64 GPU::GetTicks() const {
     return nanoseconds_num * gpu_ticks_num + (nanoseconds_rem * gpu_ticks_num) / gpu_ticks_den;
 }
 
+void GPU::ObtainContext() {
+    renderer.GetContext();
+}
+
+void GPU::ReleaseContext() {
+    renderer.ReleaseContext();
+}
+
 void GPU::FlushCommands() {
     renderer.Rasterizer().FlushCommands();
 }

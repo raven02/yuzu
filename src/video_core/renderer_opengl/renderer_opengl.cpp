@@ -480,4 +480,14 @@ bool RendererOpenGL::Init() {
 
 void RendererOpenGL::ShutDown() {}
 
+void RendererOpenGL::GetContext() {
+    inner_mutex.lock();
+    emu_window.MakeCurrent();
+}
+
+void RendererOpenGL::ReleaseContext() {
+    emu_window.DoneCurrent();
+    inner_mutex.unlock();
+}
+
 } // namespace OpenGL

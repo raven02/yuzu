@@ -202,6 +202,10 @@ public:
         return is_async;
     }
 
+    void ObtainContext();
+
+    void ReleaseContext();
+
     /// Returns a const reference to the GPU DMA pusher.
     const Tegra::DmaPusher& DmaPusher() const;
 
