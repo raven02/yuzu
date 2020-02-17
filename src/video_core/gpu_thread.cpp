@@ -37,6 +37,8 @@ static void RunThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_p
             dma_pusher.DispatchCalls();
         } else if (const auto data = std::get_if<SwapBuffersCommand>(&next.data)) {
             renderer.SwapBuffers(data->framebuffer ? &*data->framebuffer : nullptr);
+        } else if (const auto data = std::get_if<OnCommandListEndCommand>(&next.data)) {
+            renderer.Rasterizer().ReleaseFences();
         } else if (const auto data = std::get_if<FlushRegionCommand>(&next.data)) {
             renderer.Rasterizer().FlushRegion(data->addr, data->size);
         } else if (const auto data = std::get_if<InvalidateRegionCommand>(&next.data)) {
@@ -90,6 +92,10 @@ void ThreadManager::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {
 void ThreadManager::WaitIdle() const {
     while (state.last_fence > state.signaled_fence.load(std::memory_order_relaxed)) {
     }
+}
+
+void ThreadManager::OnCommandListEnd() {
+    PushCommand(OnCommandListEndCommand());
 }
 
 u64 ThreadManager::PushCommand(CommandData&& command_data) {

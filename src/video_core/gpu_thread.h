@@ -68,9 +68,12 @@ struct FlushAndInvalidateRegionCommand final {
     u64 size;
 };
 
+/// Command to signal to the GPU thread that processing has ended
+struct OnCommandListEndCommand final {};
+
 using CommandData =
     std::variant<EndProcessingCommand, SubmitListCommand, SwapBuffersCommand, FlushRegionCommand,
-                 InvalidateRegionCommand, FlushAndInvalidateRegionCommand>;
+                 InvalidateRegionCommand, FlushAndInvalidateRegionCommand, OnCommandListEndCommand>;
 
 struct CommandDataContainer {
     CommandDataContainer() = default;
@@ -118,6 +121,8 @@ public:
 
     // Wait until the gpu thread is idle.
     void WaitIdle() const;
+
+    void OnCommandListEnd();
 
 private:
     /// Pushes a command to be executed by the GPU thread

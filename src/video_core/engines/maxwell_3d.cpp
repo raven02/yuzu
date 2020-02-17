@@ -378,14 +378,6 @@ void Maxwell3D::StampQueryResult(u64 payload, bool long_query) {
     }
 }
 
-void Maxwell3D::ReleaseFences() {
-    for (const auto pair : delay_fences) {
-        const auto [addr, payload] = pair;
-        memory_manager.Write<u32>(addr, static_cast<u32>(payload));
-    }
-    delay_fences.clear();
-}
-
 void Maxwell3D::ProcessQueryGet() {
     // TODO(Subv): Support the other query units.
     ASSERT_MSG(regs.query.query_get.unit == Regs::QueryUnit::Crop,
@@ -393,10 +385,12 @@ void Maxwell3D::ProcessQueryGet() {
 
     switch (regs.query.query_get.operation) {
     case Regs::QueryOperation::Release: {
-        rasterizer.FlushCommands();
-        rasterizer.SyncGuestHost();
         const u64 result = regs.query.query_sequence;
-        delay_fences.emplace_back(regs.query.QueryAddress(), result);
+        if (regs.query.query_get.fence == 1) {
+            rasterizer.SignalFence(regs.query.QueryAddress(), static_cast<u32>(result));
+        } else {
+            StampQueryResult(result, regs.query.query_get.short_query == 0);
+        }
         break;
     case Regs::QueryOperation::Acquire:
         // TODO(Blinkhawk): Under this operation, the GPU waits for the CPU to write a value that
