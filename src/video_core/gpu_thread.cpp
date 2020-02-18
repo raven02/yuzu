@@ -78,7 +78,7 @@ void ThreadManager::SwapBuffers(const Tegra::FramebufferConfig* framebuffer) {
 }
 
 void ThreadManager::FlushRegion(CacheAddr addr, u64 size) {
-    if (!Settings::values.use_accurate_gpu_emulation) {
+    if (!Settings::IsGPULevelHigh()) {
         return;
     }
     if (system.Renderer().Rasterizer().MustFlushRegion(addr, size)) {
