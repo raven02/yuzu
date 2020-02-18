@@ -67,6 +67,7 @@ public:
     void Query(GPUVAddr gpu_addr, VideoCore::QueryType type, std::optional<u64> timestamp) override;
     void FlushAll() override;
     void FlushRegion(CacheAddr addr, u64 size) override;
+    bool MustFlushRegion(CacheAddr addr, u64 size) override;
     void InvalidateRegion(CacheAddr addr, u64 size) override;
     void OnCPUWrite(CacheAddr addr, u64 size) override;
     void SyncGuestHost() override;

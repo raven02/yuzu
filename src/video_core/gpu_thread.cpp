@@ -6,6 +6,7 @@
 #include "common/microprofile.h"
 #include "core/core.h"
 #include "core/frontend/scope_acquire_context.h"
+#include "core/settings.h"
 #include "video_core/dma_pusher.h"
 #include "video_core/gpu.h"
 #include "video_core/gpu_thread.h"
@@ -77,7 +78,11 @@ void ThreadManager::SwapBuffers(const Tegra::FramebufferConfig* framebuffer) {
 }
 
 void ThreadManager::FlushRegion(CacheAddr addr, u64 size) {
-    PushCommand(FlushRegionCommand(addr, size));
+    if (system.Renderer().Rasterizer().MustFlushRegion(addr, size)) {
+        u64 fence = PushCommand(FlushRegionCommand(addr, size));
+        while (fence < state.signaled_fence.load(std::memory_order_relaxed)) {
+        }
+    }
 }
 
 void ThreadManager::InvalidateRegion(CacheAddr addr, u64 size) {

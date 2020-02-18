@@ -129,6 +129,18 @@ public:
         }
     }
 
+    bool MustFlushRegion(CacheAddr addr, std::size_t size) {
+        std::lock_guard lock{mutex};
+
+        std::vector<MapInterval> objects = GetMapsInRange(addr, size);
+        for (auto& object : objects) {
+            if (object->IsModified() && object->IsRegistered()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// Mark the specified region as being invalidated
     void InvalidateRegion(CacheAddr addr, u64 size) {
         std::lock_guard lock{mutex};

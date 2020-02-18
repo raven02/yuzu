@@ -118,6 +118,21 @@ public:
         }
     }
 
+    bool MustFlushRegion(CacheAddr addr, std::size_t size) {
+        std::lock_guard lock{mutex};
+
+        auto surfaces = GetSurfacesInRegion(addr, size);
+        if (surfaces.empty()) {
+            return false;
+        }
+        for (const auto& surface : surfaces) {
+            if (surface->IsModified()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     TView GetTextureSurface(const Tegra::Texture::TICEntry& tic,
                             const VideoCommon::Shader::Sampler& entry) {
         std::lock_guard lock{mutex};
