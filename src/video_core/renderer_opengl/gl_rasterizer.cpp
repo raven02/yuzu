@@ -679,7 +679,7 @@ void RasterizerOpenGL::InvalidateRegion(CacheAddr addr, u64 size) {
 }
 
 void RasterizerOpenGL::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {
-    if (Settings::values.use_accurate_gpu_emulation) {
+    if (Settings::IsGPULevelExtreme()) {
         FlushRegion(addr, size);
     }
     InvalidateRegion(addr, size);
