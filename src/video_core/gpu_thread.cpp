@@ -78,9 +78,12 @@ void ThreadManager::SwapBuffers(const Tegra::FramebufferConfig* framebuffer) {
 }
 
 void ThreadManager::FlushRegion(CacheAddr addr, u64 size) {
+    if (!Settings::values.use_accurate_gpu_emulation) {
+        return;
+    }
     if (system.Renderer().Rasterizer().MustFlushRegion(addr, size)) {
         u64 fence = PushCommand(FlushRegionCommand(addr, size));
-        while (fence < state.signaled_fence.load(std::memory_order_relaxed)) {
+        while (fence > state.signaled_fence.load(std::memory_order_relaxed)) {
         }
     }
 }
