@@ -341,6 +341,13 @@ public:
         uncommited_flushes.reset();
     }
 
+    bool HasUncommitedFlushes() {
+        if (uncommited_flushes) {
+            return true;
+        }
+        return false;
+    }
+
     bool ShouldWaitAsyncFlushes() {
         if (commited_flushes.empty()) {
             return false;
