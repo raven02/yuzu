@@ -478,8 +478,6 @@ void RasterizerVulkan::DispatchCompute(GPUVAddr code_addr) {
                                   &descriptor_set, 0, nullptr, dld);
         cmdbuf.dispatch(grid_x, grid_y, grid_z, dld);
     });
-
-    system.GPU().TickWork();
 }
 
 void RasterizerVulkan::ResetCounter(VideoCore::QueryType type) {
