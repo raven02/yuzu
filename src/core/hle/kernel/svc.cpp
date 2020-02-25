@@ -1487,13 +1487,7 @@ static ResultCode StartThread(Core::System& system, Handle thread_handle) {
 
     ASSERT(thread->GetStatus() == ThreadStatus::Dormant);
 
-    thread->ResumeFromWait();
-
-    if (thread->GetStatus() == ThreadStatus::Ready) {
-        system.PrepareReschedule(thread->GetProcessorID());
-    }
-
-    return RESULT_SUCCESS;
+    return thread->Start();
 }
 
 /// Called when a thread exits
@@ -1501,9 +1495,8 @@ static void ExitThread(Core::System& system) {
     LOG_DEBUG(Kernel_SVC, "called, pc=0x{:08X}", system.CurrentArmInterface().GetPC());
 
     auto* const current_thread = system.CurrentScheduler().GetCurrentThread();
-    current_thread->Stop();
     system.GlobalScheduler().RemoveThread(SharedFrom(current_thread));
-    system.PrepareReschedule();
+    current_thread->Stop();
 }
 
 /// Sleep the current thread
@@ -1523,13 +1516,13 @@ static void SleepThread(Core::System& system, s64 nanoseconds) {
     if (nanoseconds <= 0) {
         switch (static_cast<SleepType>(nanoseconds)) {
         case SleepType::YieldWithoutLoadBalancing:
-            is_redundant = current_thread->YieldSimple();
+            current_thread->YieldSimple();
             break;
         case SleepType::YieldWithLoadBalancing:
-            is_redundant = current_thread->YieldAndBalanceLoad();
+            current_thread->YieldAndBalanceLoad();
             break;
         case SleepType::YieldAndWaitForLoadBalancing:
-            is_redundant = current_thread->YieldAndWaitForLoadBalancing();
+            current_thread->YieldAndWaitForLoadBalancing();
             break;
         default:
             UNREACHABLE_MSG("Unimplemented sleep yield type '{:016X}'!", nanoseconds);
@@ -1537,7 +1530,6 @@ static void SleepThread(Core::System& system, s64 nanoseconds) {
     } else {
         current_thread->Sleep(nanoseconds);
     }
-    system.PrepareReschedule(current_thread->GetProcessorID());
 }
 
 /// Wait process wide key atomic
