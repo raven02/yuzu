@@ -25,6 +25,7 @@
 #include "core/hle/kernel/handle_table.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/mutex.h"
+#include "core/hle/kernel/physical_core.h"
 #include "core/hle/kernel/process.h"
 #include "core/hle/kernel/readable_event.h"
 #include "core/hle/kernel/resource_limit.h"
@@ -1126,6 +1127,7 @@ static ResultCode GetThreadPriority(Core::System& system, u32* priority, Handle 
     const auto& handle_table = system.Kernel().CurrentProcess()->GetHandleTable();
     const std::shared_ptr<Thread> thread = handle_table.Get<Thread>(handle);
     if (!thread) {
+        *priority = 0;
         LOG_ERROR(Kernel_SVC, "Thread handle does not exist, handle=0x{:08X}", handle);
         return ERR_INVALID_HANDLE;
     }
@@ -1160,14 +1162,13 @@ static ResultCode SetThreadPriority(Core::System& system, Handle handle, u32 pri
 
     thread->SetPriority(priority);
 
-    system.PrepareReschedule(thread->GetProcessorID());
     return RESULT_SUCCESS;
 }
 
 /// Get which CPU core is executing the current thread
 static u32 GetCurrentProcessorNumber(Core::System& system) {
     LOG_TRACE(Kernel_SVC, "called");
-    return system.CurrentScheduler().GetCurrentThread()->GetProcessorID();
+    return static_cast<u32>(system.CurrentPhysicalCore().CoreIndex());
 }
 
 static ResultCode MapSharedMemory(Core::System& system, Handle shared_memory_handle, VAddr addr,
@@ -1508,8 +1509,8 @@ static ResultCode CreateThread(Core::System& system, Handle* out_handle, VAddr e
     auto& kernel = system.Kernel();
     ThreadType type = THREADTYPE_USER;
     CASCADE_RESULT(std::shared_ptr<Thread> thread,
-                   Thread::Create(system, type, "", entry_point, priority, arg, processor_id, stack_top,
-                                  current_process));
+                   Thread::Create(system, type, "", entry_point, priority, arg, processor_id,
+                                  stack_top, current_process));
 
     const auto new_thread_handle = current_process->GetHandleTable().Create(thread);
     if (new_thread_handle.Failed()) {
@@ -1987,6 +1988,8 @@ static ResultCode GetThreadCoreMask(Core::System& system, Handle thread_handle, 
     if (!thread) {
         LOG_ERROR(Kernel_SVC, "Thread handle does not exist, thread_handle=0x{:08X}",
                   thread_handle);
+        *core = 0;
+        *mask = 0;
         return ERR_INVALID_HANDLE;
     }
 
@@ -2049,11 +2052,7 @@ static ResultCode SetThreadCoreMask(Core::System& system, Handle thread_handle, 
         return ERR_INVALID_HANDLE;
     }
 
-    system.PrepareReschedule(thread->GetProcessorID());
-    thread->ChangeCore(core, affinity_mask);
-    system.PrepareReschedule(thread->GetProcessorID());
-
-    return RESULT_SUCCESS;
+    return thread->SetCoreAndAffinityMask(core, affinity_mask);
 }
 
 static ResultCode CreateSharedMemory(Core::System& system, Handle* handle, u64 size,
