@@ -259,9 +259,10 @@ int main(int argc, char** argv) {
 
     system.Renderer().Rasterizer().LoadDiskResources();
 
-    while (!finished) {
-        //system.RunLoop();
-    }
+    system.Run();
+    while (!finished)
+        ;
+    system.Pause();
 
     detached_tasks.WaitForAllTasks();
     return return_value;
