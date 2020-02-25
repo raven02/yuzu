@@ -136,8 +136,8 @@ struct System::Impl {
     ResultStatus Pause() {
         status = ResultStatus::Success;
 
-        kernel.Suspend(true);
         core_timing.SyncPause(true);
+        kernel.Suspend(true);
         cpu_manager.Pause(true);
 
         return status;
