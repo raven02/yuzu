@@ -41,8 +41,9 @@ EmuThread::~EmuThread() = default;
 
 void EmuThread::run() {
     render_window->MakeCurrent();
-
-    MicroProfileOnThreadCreate("EmuThread");
+    std::string name = "yuzu:EmuControlThread";
+    MicroProfileOnThreadCreate(name.c_str());
+    Common::SetCurrentThreadName(name.c_str());
 
     emit LoadProgress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
 
