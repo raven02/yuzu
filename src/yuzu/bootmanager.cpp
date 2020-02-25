@@ -56,7 +56,9 @@ static GMainWindow* GetMainWindow() {
 }
 
 void EmuThread::run() {
-    MicroProfileOnThreadCreate("EmuThread");
+    std::string name = "yuzu:EmuControlThread";
+    MicroProfileOnThreadCreate(name.c_str());
+    Common::SetCurrentThreadName(name.c_str());
 
     Core::Frontend::ScopeAcquireContext acquire_context{context};
 
