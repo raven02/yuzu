@@ -28,15 +28,12 @@ namespace Memory {
 struct Memory::Impl {
     explicit Impl(Core::System& system_) : system{system_} {}
 
-    void SetCurrentPageTable(Kernel::Process& process) {
+    void SetCurrentPageTable(Kernel::Process& process, u32 core_id) {
         current_page_table = &process.VMManager().page_table;
 
         const std::size_t address_space_width = process.VMManager().GetAddressSpaceWidth();
 
-        system.ArmInterface(0).PageTableChanged(*current_page_table, address_space_width);
-        system.ArmInterface(1).PageTableChanged(*current_page_table, address_space_width);
-        system.ArmInterface(2).PageTableChanged(*current_page_table, address_space_width);
-        system.ArmInterface(3).PageTableChanged(*current_page_table, address_space_width);
+        system.ArmInterface(core_id).PageTableChanged(*current_page_table, address_space_width);
     }
 
     void MapMemoryRegion(Common::PageTable& page_table, VAddr base, u64 size,
@@ -603,8 +600,8 @@ struct Memory::Impl {
 Memory::Memory(Core::System& system) : impl{std::make_unique<Impl>(system)} {}
 Memory::~Memory() = default;
 
-void Memory::SetCurrentPageTable(Kernel::Process& process) {
-    impl->SetCurrentPageTable(process);
+void Memory::SetCurrentPageTable(Kernel::Process& process, u32 core_id) {
+    impl->SetCurrentPageTable(process, core_id);
 }
 
 void Memory::MapMemoryRegion(Common::PageTable& page_table, VAddr base, u64 size,

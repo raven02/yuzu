@@ -7,6 +7,12 @@
 #include <cstddef>
 #include <memory>
 
+#include "core/arm/cpu_interrupt_handler.h"
+
+namespace Common {
+    class SpinLock;
+}
+
 namespace Kernel {
 class Scheduler;
 } // namespace Kernel
@@ -32,10 +38,23 @@ public:
 
     /// Execute current jit state
     void Run();
+    /// Set this core in IdleState.
+    void Idle();
     /// Execute a single instruction in current jit.
     void Step();
     /// Stop JIT execution/exit
     void Stop();
+
+    /// Interrupt this physical core.
+    void Interrupt();
+
+    /// Clear this core's interrupt
+    void ClearInterrupt();
+
+    /// Check if this core is interrupted
+    bool IsInterrupted() const {
+        return interrupt_handler.IsInterrupted();
+    }
 
     // Shutdown this physical core.
     void Shutdown();
@@ -69,9 +88,11 @@ public:
     }
 
 private:
+    Core::CPUInterruptHandler interrupt_handler;
     std::size_t core_index;
     std::unique_ptr<Core::ARM_Interface> arm_interface;
     std::unique_ptr<Kernel::Scheduler> scheduler;
+    std::unique_ptr<Common::SpinLock> guard;
 };
 
 } // namespace Kernel

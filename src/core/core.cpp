@@ -11,7 +11,6 @@
 #include "common/string_util.h"
 #include "core/arm/exclusive_monitor.h"
 #include "core/core.h"
-#include "core/core_manager.h"
 #include "core/core_timing.h"
 #include "core/cpu_manager.h"
 #include "core/file_sys/bis_factory.h"
@@ -116,23 +115,30 @@ struct System::Impl {
         : kernel{system}, fs_controller{system}, memory{system},
           cpu_manager{system}, reporter{system}, applet_manager{system} {}
 
-    CoreManager& CurrentCoreManager() {
-        return cpu_manager.GetCurrentCoreManager();
-    }
-
     Kernel::PhysicalCore& CurrentPhysicalCore() {
-        const auto index = cpu_manager.GetActiveCoreIndex();
-        return kernel.PhysicalCore(index);
+        return kernel.CurrentPhysicalCore();
     }
 
     Kernel::PhysicalCore& GetPhysicalCore(std::size_t index) {
         return kernel.PhysicalCore(index);
     }
 
-    ResultStatus RunLoop(bool tight_loop) {
+    ResultStatus Run() {
         status = ResultStatus::Success;
 
-        cpu_manager.RunLoop(tight_loop);
+        kernel.Suspend(false);
+        core_timing.SyncPause(false);
+        cpu_manager.Pause(false);
+
+        return status;
+    }
+
+    ResultStatus Pause() {
+        status = ResultStatus::Success;
+
+        kernel.Suspend(true);
+        core_timing.SyncPause(true);
+        cpu_manager.Pause(true);
 
         return status;
     }
@@ -140,7 +146,7 @@ struct System::Impl {
     ResultStatus Init(System& system, Frontend::EmuWindow& emu_window) {
         LOG_DEBUG(HW_Memory, "initialized OK");
 
-        core_timing.Initialize();
+        core_timing.Initialize([&system]() { system.RegisterHostThread(); });
         kernel.Initialize();
         cpu_manager.Initialize();
 
@@ -388,20 +394,24 @@ struct System::Impl {
 System::System() : impl{std::make_unique<Impl>(*this)} {}
 System::~System() = default;
 
-CoreManager& System::CurrentCoreManager() {
-    return impl->CurrentCoreManager();
+CpuManager& System::GetCpuManager() {
+    return impl->cpu_manager;
 }
 
-const CoreManager& System::CurrentCoreManager() const {
-    return impl->CurrentCoreManager();
+const CpuManager& System::GetCpuManager() const {
+    return impl->cpu_manager;
 }
 
-System::ResultStatus System::RunLoop(bool tight_loop) {
-    return impl->RunLoop(tight_loop);
+System::ResultStatus System::Run() {
+    return impl->Run();
+}
+
+System::ResultStatus System::Pause() {
+    return impl->Pause();
 }
 
 System::ResultStatus System::SingleStep() {
-    return RunLoop(false);
+    return ResultStatus::Success;
 }
 
 void System::InvalidateCpuInstructionCaches() {
@@ -445,7 +455,9 @@ const ARM_Interface& System::CurrentArmInterface() const {
 }
 
 std::size_t System::CurrentCoreIndex() const {
-    return impl->cpu_manager.GetActiveCoreIndex();
+    std::size_t core = impl->kernel.GetCurrentHostThreadID();
+    ASSERT(core < Core::Hardware::NUM_CPU_CORES);
+    return core;
 }
 
 Kernel::Scheduler& System::CurrentScheduler() {
@@ -488,15 +500,6 @@ ARM_Interface& System::ArmInterface(std::size_t core_index) {
 
 const ARM_Interface& System::ArmInterface(std::size_t core_index) const {
     return impl->GetPhysicalCore(core_index).ArmInterface();
-}
-
-CoreManager& System::GetCoreManager(std::size_t core_index) {
-    return impl->cpu_manager.GetCoreManager(core_index);
-}
-
-const CoreManager& System::GetCoreManager(std::size_t core_index) const {
-    ASSERT(core_index < NUM_CPU_CORES);
-    return impl->cpu_manager.GetCoreManager(core_index);
 }
 
 ExclusiveMonitor& System::Monitor() {
