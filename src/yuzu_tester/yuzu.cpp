@@ -260,7 +260,7 @@ int main(int argc, char** argv) {
     system.Renderer().Rasterizer().LoadDiskResources();
 
     while (!finished) {
-        system.RunLoop();
+        //system.RunLoop();
     }
 
     detached_tasks.WaitForAllTasks();
