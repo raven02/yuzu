@@ -237,9 +237,10 @@ int main(int argc, char** argv) {
     emu_window->MakeCurrent();
     system.Renderer().Rasterizer().LoadDiskResources();
 
-    while (emu_window->IsOpen()) {
-        //system.RunLoop();
-    }
+    system.Run();
+    while (emu_window->IsOpen())
+        ;
+    system.Pause();
 
     system.Shutdown();
 
