@@ -280,6 +280,8 @@ public:
         sleep_cancelled = true;
     }
 
+    void Release();
+
 private:
     Handle& event_handle;
     Thread* time_task;
