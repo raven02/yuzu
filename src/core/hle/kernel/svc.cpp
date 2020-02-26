@@ -702,7 +702,6 @@ static void Break(Core::System& system, u32 reason, u64 info1, u64 info2) {
 
         // Kill the current thread
         current_thread->Stop();
-        system.PrepareReschedule();
     }
 }
 
@@ -1059,6 +1058,7 @@ static ResultCode UnmapPhysicalMemory(Core::System& system, VAddr addr, u64 size
 /// Sets the thread activity
 static ResultCode SetThreadActivity(Core::System& system, Handle handle, u32 activity) {
     LOG_DEBUG(Kernel_SVC, "called, handle=0x{:08X}, activity=0x{:08X}", handle, activity);
+    UNIMPLEMENTED();
     if (activity > static_cast<u32>(ThreadActivity::Paused)) {
         return ERR_INVALID_ENUM_VALUE;
     }
@@ -1087,7 +1087,6 @@ static ResultCode SetThreadActivity(Core::System& system, Handle handle, u32 act
 
     thread->SetActivity(static_cast<ThreadActivity>(activity));
 
-    system.PrepareReschedule(thread->GetProcessorID());
     return RESULT_SUCCESS;
 }
 
@@ -1466,6 +1465,7 @@ static ResultCode UnmapProcessCodeMemory(Core::System& system, Handle process_ha
 /// Exits the current process
 static void ExitProcess(Core::System& system) {
     auto* current_process = system.Kernel().CurrentProcess();
+    UNIMPLEMENTED();
 
     LOG_INFO(Kernel_SVC, "Process {} exiting", current_process->GetProcessID());
     ASSERT_MSG(current_process->GetStatus() == ProcessStatus::Running,
@@ -1475,8 +1475,6 @@ static void ExitProcess(Core::System& system) {
 
     // Kill the current thread
     system.CurrentScheduler().GetCurrentThread()->Stop();
-
-    system.PrepareReschedule();
 }
 
 /// Creates a new thread
@@ -1535,8 +1533,6 @@ static ResultCode CreateThread(Core::System& system, Handle* out_handle, VAddr e
     // Set the thread name for debugging purposes.
     thread->SetName(
         fmt::format("thread[entry_point={:X}, handle={:X}]", entry_point, *new_thread_handle));
-
-    system.PrepareReschedule(thread->GetProcessorID());
 
     return RESULT_SUCCESS;
 }
@@ -1623,6 +1619,8 @@ static ResultCode WaitProcessWideKeyAtomic(Core::System& system, VAddr mutex_add
         return ERR_INVALID_ADDRESS;
     }
 
+    UNIMPLEMENTED();
+
     ASSERT(condition_variable_addr == Common::AlignDown(condition_variable_addr, 4));
 
     auto* const current_process = system.Kernel().CurrentProcess();
@@ -1647,7 +1645,6 @@ static ResultCode WaitProcessWideKeyAtomic(Core::System& system, VAddr mutex_add
 
     // Note: Deliberately don't attempt to inherit the lock owner's priority.
 
-    system.PrepareReschedule(current_thread->GetProcessorID());
     return RESULT_SUCCESS;
 }
 
@@ -1657,6 +1654,8 @@ static void SignalProcessWideKey(Core::System& system, VAddr condition_variable_
               condition_variable_addr, target);
 
     ASSERT(condition_variable_addr == Common::AlignDown(condition_variable_addr, 4));
+
+    UNIMPLEMENTED();
 
     // Retrieve a list of all threads that are waiting for this condition variable.
     auto* const current_process = system.Kernel().CurrentProcess();
@@ -1712,7 +1711,6 @@ static void SignalProcessWideKey(Core::System& system, VAddr condition_variable_
             thread->SetMutexWaitAddress(0);
             thread->SetWaitHandle(0);
             thread->SetWaitSynchronizationResult(RESULT_SUCCESS);
-            system.PrepareReschedule(thread->GetProcessorID());
         } else {
             // The mutex is already owned by some other thread, make this thread wait on it.
             const Handle owner_handle = static_cast<Handle>(mutex_val & Mutex::MutexOwnerMask);
@@ -1724,7 +1722,6 @@ static void SignalProcessWideKey(Core::System& system, VAddr condition_variable_
             thread->SetStatus(ThreadStatus::WaitMutex);
 
             owner->AddMutexWaiter(thread);
-            system.PrepareReschedule(thread->GetProcessorID());
         }
     }
 }
@@ -1739,6 +1736,7 @@ static ResultCode WaitForAddress(Core::System& system, VAddr address, u32 type, 
     LOG_TRACE(Kernel_SVC, "called, address=0x{:X}, type=0x{:X}, value=0x{:X}, timeout={}", address,
               type, value, timeout);
 
+    UNIMPLEMENTED();
     // If the passed address is a kernel virtual address, return invalid memory state.
     if (Memory::IsKernelVirtualAddress(address)) {
         LOG_ERROR(Kernel_SVC, "Address is a kernel virtual address, address={:016X}", address);
@@ -1755,9 +1753,6 @@ static ResultCode WaitForAddress(Core::System& system, VAddr address, u32 type, 
     auto& address_arbiter = system.Kernel().CurrentProcess()->GetAddressArbiter();
     const ResultCode result =
         address_arbiter.WaitForAddress(address, arbitration_type, value, timeout);
-    if (result == RESULT_SUCCESS) {
-        system.PrepareReschedule();
-    }
     return result;
 }
 
@@ -1766,6 +1761,8 @@ static ResultCode SignalToAddress(Core::System& system, VAddr address, u32 type,
                                   s32 num_to_wake) {
     LOG_TRACE(Kernel_SVC, "called, address=0x{:X}, type=0x{:X}, value=0x{:X}, num_to_wake=0x{:X}",
               address, type, value, num_to_wake);
+
+    UNIMPLEMENTED();
 
     // If the passed address is a kernel virtual address, return invalid memory state.
     if (Memory::IsKernelVirtualAddress(address)) {
@@ -2174,7 +2171,6 @@ static ResultCode SignalEvent(Core::System& system, Handle handle) {
     }
 
     writable_event->Signal();
-    system.PrepareReschedule();
     return RESULT_SUCCESS;
 }
 
