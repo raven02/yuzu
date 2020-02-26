@@ -373,6 +373,7 @@ static ResultCode ConnectToNamedPort(Core::System& system, Handle* out_handle,
     return RESULT_SUCCESS;
 }
 
+///TODO(Blinkhawk): Solve the dynarmic fibers bug
 /// Makes a blocking IPC call to an OS service.
 static ResultCode SendSyncRequest(Core::System& system, Handle handle) {
     const auto& handle_table = system.Kernel().CurrentProcess()->GetHandleTable();
@@ -390,7 +391,9 @@ static ResultCode SendSyncRequest(Core::System& system, Handle handle) {
         thread->InvalidateHLECallback();
         thread->SetStatus(ThreadStatus::WaitIPC);
         session->SendSyncRequest(SharedFrom(thread), system.Memory());
+        /// Sleeps Here
     }
+    /// Wakes up here
     ResultCode result = thread->GetSignalingResult();
     if (thread->HasHLECallback()) {
         Handle event_handle = thread->GetHLETimeEvent();
@@ -401,6 +404,7 @@ static ResultCode SendSyncRequest(Core::System& system, Handle handle) {
         thread->InvokeHLECallback(ThreadWakeupReason::Timeout, SharedFrom(thread), nullptr, 0);
     }
 
+    /// Return to dynarmic, crash afterwards
     return result;
 }
 
@@ -2457,6 +2461,7 @@ void CallSVC(Core::System& system, u32 immediate) {
 
     const FunctionDef* info = GetSVCInfo(immediate);
     if (info) {
+        LOG_CRITICAL(Kernel_SVC, "Calling SVC function {}(..)", info->name);
         if (info->func) {
             info->func(system);
         } else {
