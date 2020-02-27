@@ -62,6 +62,7 @@ constexpr u64 MAIN_MEMORY_SIZE = 0x200000000;
 // in the same order.
 ResultCode MapUnmapMemorySanityChecks(const VMManager& vm_manager, VAddr dst_addr, VAddr src_addr,
                                       u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     if (!Common::Is4KBAligned(dst_addr)) {
         LOG_ERROR(Kernel_SVC, "Destination address is not aligned to 4KB, 0x{:016X}", dst_addr);
         return ERR_INVALID_ADDRESS;
@@ -138,6 +139,7 @@ enum class ResourceLimitValueType {
 
 ResultVal<s64> RetrieveResourceLimitValue(Core::System& system, Handle resource_limit,
                                           u32 resource_type, ResourceLimitValueType value_type) {
+    std::lock_guard lock{HLE::g_hle_lock};
     const auto type = static_cast<ResourceType>(resource_type);
     if (!IsValidResourceType(type)) {
         LOG_ERROR(Kernel_SVC, "Invalid resource limit type: '{}'", resource_type);
@@ -165,6 +167,7 @@ ResultVal<s64> RetrieveResourceLimitValue(Core::System& system, Handle resource_
 
 /// Set the process heap to a given Size. It can both extend and shrink the heap.
 static ResultCode SetHeapSize(Core::System& system, VAddr* heap_addr, u64 heap_size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_TRACE(Kernel_SVC, "called, heap_size=0x{:X}", heap_size);
 
     // Size must be a multiple of 0x200000 (2MB) and be equal to or less than 8GB.
@@ -198,6 +201,7 @@ static ResultCode SetHeapSize32(Core::System& system, u32* heap_addr, u32 heap_s
 
 static ResultCode SetMemoryPermission(Core::System& system, VAddr addr, u64 size, u32 prot) {
     LOG_TRACE(Kernel_SVC, "called, addr=0x{:X}, size=0x{:X}, prot=0x{:X}", addr, size, prot);
+    std::lock_guard lock{HLE::g_hle_lock};
 
     if (!Common::Is4KBAligned(addr)) {
         LOG_ERROR(Kernel_SVC, "Address is not aligned to 4KB, addr=0x{:016X}", addr);
@@ -255,6 +259,7 @@ static ResultCode SetMemoryPermission(Core::System& system, VAddr addr, u64 size
 
 static ResultCode SetMemoryAttribute(Core::System& system, VAddr address, u64 size, u32 mask,
                                      u32 attribute) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC,
               "called, address=0x{:016X}, size=0x{:X}, mask=0x{:08X}, attribute=0x{:08X}", address,
               size, mask, attribute);
@@ -304,6 +309,7 @@ static ResultCode SetMemoryAttribute(Core::System& system, VAddr address, u64 si
 
 /// Maps a memory range into a different range.
 static ResultCode MapMemory(Core::System& system, VAddr dst_addr, VAddr src_addr, u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_TRACE(Kernel_SVC, "called, dst_addr=0x{:X}, src_addr=0x{:X}, size=0x{:X}", dst_addr,
               src_addr, size);
 
@@ -319,6 +325,7 @@ static ResultCode MapMemory(Core::System& system, VAddr dst_addr, VAddr src_addr
 
 /// Unmaps a region that was previously mapped with svcMapMemory
 static ResultCode UnmapMemory(Core::System& system, VAddr dst_addr, VAddr src_addr, u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_TRACE(Kernel_SVC, "called, dst_addr=0x{:X}, src_addr=0x{:X}, size=0x{:X}", dst_addr,
               src_addr, size);
 
@@ -342,6 +349,7 @@ static ResultCode UnmapMemory(Core::System& system, VAddr dst_addr, VAddr src_ad
 /// Connect to an OS service given the port name, returns the handle to the port to out
 static ResultCode ConnectToNamedPort(Core::System& system, Handle* out_handle,
                                      VAddr port_name_address) {
+    std::lock_guard lock{HLE::g_hle_lock};
     auto& memory = system.Memory();
 
     if (!memory.IsValidVirtualAddress(port_name_address)) {
@@ -388,6 +396,7 @@ static ResultCode ConnectToNamedPort32(Core::System& system, Handle* out_handle,
 
 /// Makes a blocking IPC call to an OS service.
 static ResultCode SendSyncRequest(Core::System& system, Handle handle) {
+    std::lock_guard lock{HLE::g_hle_lock};
     const auto& handle_table = system.Kernel().CurrentProcess()->GetHandleTable();
     std::shared_ptr<ClientSession> session = handle_table.Get<ClientSession>(handle);
     if (!session) {
@@ -719,6 +728,7 @@ static void OutputDebugString([[maybe_unused]] Core::System& system, VAddr addre
 /// Gets system/memory information for the current process
 static ResultCode GetInfo(Core::System& system, u64* result, u64 info_id, u64 handle,
                           u64 info_sub_id) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_TRACE(Kernel_SVC, "called info_id=0x{:X}, info_sub_id=0x{:X}, handle=0x{:08X}", info_id,
               info_sub_id, handle);
 
@@ -977,6 +987,7 @@ static ResultCode GetInfo32(Core::System& system, u32* result_low, u32* result_h
 
 /// Maps memory at a desired address
 static ResultCode MapPhysicalMemory(Core::System& system, VAddr addr, u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC, "called, addr=0x{:016X}, size=0x{:X}", addr, size);
 
     if (!Common::Is4KBAligned(addr)) {
@@ -1017,6 +1028,7 @@ static ResultCode MapPhysicalMemory(Core::System& system, VAddr addr, u64 size) 
 
 /// Unmaps memory previously mapped via MapPhysicalMemory
 static ResultCode UnmapPhysicalMemory(Core::System& system, VAddr addr, u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC, "called, addr=0x{:016X}, size=0x{:X}", addr, size);
 
     if (!Common::Is4KBAligned(addr)) {
@@ -1184,6 +1196,7 @@ static u32 GetCurrentProcessorNumber(Core::System& system) {
 
 static ResultCode MapSharedMemory(Core::System& system, Handle shared_memory_handle, VAddr addr,
                                   u64 size, u32 permissions) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_TRACE(Kernel_SVC,
               "called, shared_memory_handle=0x{:X}, addr=0x{:X}, size=0x{:X}, permissions=0x{:08X}",
               shared_memory_handle, addr, size, permissions);
@@ -1237,6 +1250,7 @@ static ResultCode MapSharedMemory(Core::System& system, Handle shared_memory_han
 
 static ResultCode UnmapSharedMemory(Core::System& system, Handle shared_memory_handle, VAddr addr,
                                     u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_WARNING(Kernel_SVC, "called, shared_memory_handle=0x{:08X}, addr=0x{:X}, size=0x{:X}",
                 shared_memory_handle, addr, size);
 
@@ -1282,6 +1296,7 @@ static ResultCode UnmapSharedMemory(Core::System& system, Handle shared_memory_h
 static ResultCode QueryProcessMemory(Core::System& system, VAddr memory_info_address,
                                      VAddr page_info_address, Handle process_handle,
                                      VAddr address) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_TRACE(Kernel_SVC, "called process=0x{:08X} address={:X}", process_handle, address);
     const auto& handle_table = system.Kernel().CurrentProcess()->GetHandleTable();
     std::shared_ptr<Process> process = handle_table.Get<Process>(process_handle);
@@ -1328,6 +1343,7 @@ static ResultCode QueryMemory32(Core::System& system, u32 memory_info_address,
 
 static ResultCode MapProcessCodeMemory(Core::System& system, Handle process_handle, u64 dst_address,
                                        u64 src_address, u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC,
               "called. process_handle=0x{:08X}, dst_address=0x{:016X}, "
               "src_address=0x{:016X}, size=0x{:016X}",
@@ -1396,6 +1412,7 @@ static ResultCode MapProcessCodeMemory(Core::System& system, Handle process_hand
 
 static ResultCode UnmapProcessCodeMemory(Core::System& system, Handle process_handle,
                                          u64 dst_address, u64 src_address, u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC,
               "called. process_handle=0x{:08X}, dst_address=0x{:016X}, src_address=0x{:016X}, "
               "size=0x{:016X}",
@@ -1860,6 +1877,7 @@ static ResultCode ResetSignal(Core::System& system, Handle handle) {
 /// Creates a TransferMemory object
 static ResultCode CreateTransferMemory(Core::System& system, Handle* handle, VAddr addr, u64 size,
                                        u32 permissions) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC, "called addr=0x{:X}, size=0x{:X}, perms=0x{:08X}", addr, size,
               permissions);
 
@@ -1906,6 +1924,7 @@ static ResultCode CreateTransferMemory(Core::System& system, Handle* handle, VAd
 
 static ResultCode MapTransferMemory(Core::System& system, Handle handle, VAddr address, u64 size,
                                     u32 permission_raw) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC,
               "called. handle=0x{:08X}, address=0x{:016X}, size=0x{:016X}, permissions=0x{:08X}",
               handle, address, size, permission_raw);
@@ -1963,6 +1982,7 @@ static ResultCode MapTransferMemory(Core::System& system, Handle handle, VAddr a
 
 static ResultCode UnmapTransferMemory(Core::System& system, Handle handle, VAddr address,
                                       u64 size) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC, "called. handle=0x{:08X}, address=0x{:016X}, size=0x{:016X}", handle,
               address, size);
 
@@ -2087,6 +2107,7 @@ static ResultCode SetThreadCoreMask(Core::System& system, Handle thread_handle, 
 
 static ResultCode CreateSharedMemory(Core::System& system, Handle* handle, u64 size,
                                      u32 local_permissions, u32 remote_permissions) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_TRACE(Kernel_SVC, "called, size=0x{:X}, localPerms=0x{:08X}, remotePerms=0x{:08X}", size,
               local_permissions, remote_permissions);
     if (size == 0) {
@@ -2222,6 +2243,7 @@ static ResultCode GetProcessInfo(Core::System& system, u64* out, Handle process_
 }
 
 static ResultCode CreateResourceLimit(Core::System& system, Handle* out_handle) {
+    std::lock_guard lock{HLE::g_hle_lock};
     LOG_DEBUG(Kernel_SVC, "called");
 
     auto& kernel = system.Kernel();
@@ -2669,6 +2691,13 @@ MICROPROFILE_DEFINE(Kernel_SVC, "Kernel", "SVC", MP_RGB(70, 200, 70));
 
 void CallSVC(Core::System& system, u32 immediate) {
     MICROPROFILE_SCOPE(Kernel_SVC);
+
+    auto& physical_core = system.CurrentPhysicalCore();
+    if (physical_core.IsInterrupted()) {
+        auto& sched = physical_core.Scheduler();
+        sched.TryDoContextSwitch();
+    }
+    physical_core.ClearExclusive();
 
     const FunctionDef* info = system.CurrentProcess()->Is64BitProcess() ? GetSVCInfo64(immediate)
                                                                         : GetSVCInfo32(immediate);
