@@ -2693,11 +2693,6 @@ void CallSVC(Core::System& system, u32 immediate) {
     MICROPROFILE_SCOPE(Kernel_SVC);
 
     auto& physical_core = system.CurrentPhysicalCore();
-    if (physical_core.IsInterrupted()) {
-        auto& sched = physical_core.Scheduler();
-        sched.TryDoContextSwitch();
-    }
-    physical_core.ClearExclusive();
 
     const FunctionDef* info = system.CurrentProcess()->Is64BitProcess() ? GetSVCInfo64(immediate)
                                                                         : GetSVCInfo32(immediate);
@@ -2709,6 +2704,10 @@ void CallSVC(Core::System& system, u32 immediate) {
         }
     } else {
         LOG_CRITICAL(Kernel_SVC, "Unknown SVC function 0x{:X}", immediate);
+    }
+    auto& physical_core_2 = system.CurrentPhysicalCore();
+    if (physical_core.CoreIndex() != physical_core_2.CoreIndex()) {
+        physical_core.Stop();
     }
 }
 
