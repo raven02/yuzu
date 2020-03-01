@@ -1308,7 +1308,7 @@ static ResultCode QueryProcessMemory(Core::System& system, VAddr memory_info_add
     }
 
     auto& memory = system.Memory();
-    const auto& vm_manager = process->VMManager();
+    auto& vm_manager = process->VMManager();
     const MemoryInfo memory_info = vm_manager.QueryMemory(address);
 
     memory.Write64(memory_info_address, memory_info.base_address);
