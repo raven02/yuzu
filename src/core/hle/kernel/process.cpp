@@ -19,6 +19,7 @@
 #include "core/hle/kernel/scheduler.h"
 #include "core/hle/kernel/thread.h"
 #include "core/hle/kernel/vm_manager.h"
+#include "core/hle/lock.h"
 #include "core/memory.h"
 #include "core/settings.h"
 
@@ -284,6 +285,7 @@ static auto FindTLSPageWithAvailableSlots(std::vector<TLSPage>& tls_pages) {
 }
 
 VAddr Process::CreateTLSRegion() {
+    SchedulerLock lock(system.Kernel());
     auto tls_page_iter = FindTLSPageWithAvailableSlots(tls_pages);
 
     if (tls_page_iter == tls_pages.cend()) {
@@ -309,6 +311,7 @@ VAddr Process::CreateTLSRegion() {
 }
 
 void Process::FreeTLSRegion(VAddr tls_address) {
+    SchedulerLock lock(system.Kernel());
     const VAddr aligned_address = Common::AlignDown(tls_address, Memory::PAGE_SIZE);
     auto iter =
         std::find_if(tls_pages.begin(), tls_pages.end(), [aligned_address](const auto& page) {
@@ -323,6 +326,7 @@ void Process::FreeTLSRegion(VAddr tls_address) {
 }
 
 void Process::LoadModule(CodeSet module_, VAddr base_addr) {
+    std::lock_guard lock{HLE::g_hle_lock};
     code_memory_size += module_.memory.size();
 
     const auto memory = std::make_shared<PhysicalMemory>(std::move(module_.memory));
