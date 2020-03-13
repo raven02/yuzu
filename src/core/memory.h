@@ -11,7 +11,7 @@
 #include "common/memory_hook.h"
 
 namespace Common {
-struct PageTable;
+class PageTable;
 }
 
 namespace Core {

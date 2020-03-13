@@ -46,7 +46,8 @@ struct SpecialRegion {
  * A (reasonably) fast way of allowing switchable and remappable process address spaces. It loosely
  * mimics the way a real CPU page table works.
  */
-struct PageTable {
+class PageTable {
+public:
     explicit PageTable(std::size_t page_size_in_bits);
     ~PageTable();
 
@@ -76,9 +77,17 @@ struct PageTable {
      */
     std::vector<PageType> attributes;
 
-    std::vector<u64> backing_addr;
-
     const std::size_t page_size_in_bits{};
+};
+
+class BackingPageTable : public PageTable {
+public:
+    explicit BackingPageTable(std::size_t page_size_in_bits);
+    ~BackingPageTable();
+
+    void Resize(std::size_t address_space_width_in_bits);
+
+    std::vector<u64> backing_addr;
 };
 
 } // namespace Common
