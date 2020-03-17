@@ -241,6 +241,8 @@ private:
     std::size_t num_queued_commands = 0;
 
     u32 last_clip_distance_mask = 0;
+
+    bool must_check_front_face{};
 };
 
 } // namespace OpenGL

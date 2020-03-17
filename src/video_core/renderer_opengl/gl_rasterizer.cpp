@@ -921,6 +921,7 @@ void RasterizerOpenGL::SyncViewport() {
         if (regs.screen_y_control.y_negate != 0) {
             flip_y = !flip_y;
         }
+        must_check_front_face = true;
         glClipControl(flip_y ? GL_UPPER_LEFT : GL_LOWER_LEFT,
                       regs.depth_mode == Maxwell::DepthMode::ZeroToOne ? GL_ZERO_TO_ONE
                                                                        : GL_NEGATIVE_ONE_TO_ONE);
@@ -987,6 +988,8 @@ void RasterizerOpenGL::SyncClipCoef() {
     UNIMPLEMENTED();
 }
 
+using Maxwell = Tegra::Engines::Maxwell3D::Regs;
+
 void RasterizerOpenGL::SyncCullMode() {
     auto& gpu = system.GPU().Maxwell3D();
     auto& flags = gpu.dirty.flags;
@@ -1003,9 +1006,25 @@ void RasterizerOpenGL::SyncCullMode() {
         }
     }
 
-    if (flags[Dirty::FrontFace]) {
+    if (flags[Dirty::FrontFace] || must_check_front_face) {
+        must_check_front_face = false;
         flags[Dirty::FrontFace] = false;
-        glFrontFace(MaxwellToGL::FrontFace(regs.front_face));
+        bool should_flip = false;
+        if (regs.screen_y_control.triangle_rast_flip != 0) {
+            if (regs.viewport_transform[0].scale_y < 0.0) {
+                should_flip = !should_flip;
+            }
+            if (regs.depth_mode == Maxwell::DepthMode::ZeroToOne) {
+                should_flip = !should_flip;
+            }
+        }
+        Maxwell::FrontFace face = regs.front_face;
+        if (should_flip) {
+            face = face == Maxwell::FrontFace::ClockWise
+                       ? Maxwell::FrontFace::CounterClockWise
+                       : Maxwell::FrontFace::ClockWise;
+        }
+        glFrontFace(MaxwellToGL::FrontFace(face));
     }
 }
 
